@@ -18,9 +18,8 @@ class Game(ShowBase):
         self.rot_v = 0
         self.rot_h = 0
 
-        self.environment = self.loader.load_model("assets/models/ground.bam")
-        self.environment.reparent_to(self.render)
-        self.environment.setCollideMask(BitMask32.allOn())
+        self.environment = GeoMipTerrain("terrain")
+        self.environment.setHeightfield("assets/hm.jpg")
 
         self.light = self.render.attach_new_node(PointLight('light'))
         self.light.set_pos(0, 0, 10)
@@ -39,12 +38,28 @@ class Game(ShowBase):
         self.player_node.set_pos(0, 0, 1)
         self.player_actor.loop("Idle")
 
-        push_col_node = self.player_node.attachNewNode(CollisionNode('push_col_node'))
+        # Set self.environment properties
+        self.environment.setBlockSize(8)
+        self.environment.setNear(40)
+        self.environment.setFar(100)
+        self.environment.setFocalPoint(self.player_camera)
+
+
+        # Store the root NodePath for convenience
+        root = self.environment.getRoot()
+        root.reparentTo(render)
+        root.setSz(100)
+
+        # Generate it.
+        self.environment.generate()
+        root.setCollideMask(BitMask32.allOn())
+
+        '''push_col_node = self.player_node.attachNewNode(CollisionNode('push_col_node'))
         push_col_node.node().addSolid(CollisionSphere(0, 0, 0, 1))
         push_col_node.set_pos(0, 0, 1.15)
         pusher = CollisionHandlerPusher()
         pusher.addCollider(push_col_node, self.player_node)
-        self.cTrav.addCollider(push_col_node, pusher)
+        self.cTrav.addCollider(push_col_node, pusher)'''
 
         lift_col_node = self.player_node.attachNewNode(CollisionNode('lift_col_node'))
         lift_col_node.node().addSolid(CollisionRay(0, 0, 1, 0, 0, -1))
@@ -65,6 +80,7 @@ class Game(ShowBase):
         dr = self.camNode.getDisplayRegion(0)
         dr.setCamera(self.player_camera)
 
+
     def set_center(self):
         self.center = (self.win.getXSize() // 2, self.win.getYSize() // 2)
 
@@ -83,19 +99,20 @@ class Game(ShowBase):
 
     def player_movement_task(self, _task):
         velocity = Vec3(0, 0, 0)
+        speed = 5
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("w")):
-            velocity.y = 0.5
+            velocity.y = speed
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("s")):
-            velocity.y = -0.5
+            velocity.y = -speed
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("d")):
-            velocity.x = 0.5
+            velocity.x = speed
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("a")):
-            velocity.x = -0.5
+            velocity.x = -speed
         if self.mouseWatcherNode.is_button_down(KeyboardButton.space()):
             velocity.z = 0.5
         self.player_node.set_pos(self.player_node, *velocity)
+        #print(self.player_node.getPos())
         return Task.cont
-
 
 game = Game()
 game.run()
