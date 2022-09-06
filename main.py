@@ -7,6 +7,8 @@ from direct.gui.OnscreenImage import OnscreenImage
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from panda3d.core import *
+  
+loadPrcFileData('', 'win-size 1200 720')
 
 ground_mask = BitMask32(0b10)
 wall_mask = BitMask32(0b100)
@@ -49,6 +51,13 @@ class Game(ShowBase):
         player_node = NodePath("player_node")
         player_node.reparent_to(self.render)
         self.player = Player(player_node, self.cTrav)
+
+        gun_node = NodePath("gun_node")
+        self.gun = Gun(gun_node, self.loader.loadModel("assets/models/gun.gltf"))
+        self.gun.node.set_h(90)
+        self.gun.node.set_r(-5)
+        self.gun.node.set_pos(Vec3(0.3, 2, -0.4))
+        self.gun.node.reparent_to(self.player.camera)
 
         self.aliens = {}
         for i in range(10):
@@ -107,7 +116,7 @@ class Game(ShowBase):
     def player_movement_task(self, _task):
         velocity = Vec3(0, 0, 0)
         dt = globalClock.getDt()
-        speed = Vec4(25, 20, 10, 25) # front, back, sideways, up
+        speed = Vec3(20, 15, 10) # front, back, sideways
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("w")):
             velocity.y = speed.x * dt
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("s")):
@@ -218,7 +227,7 @@ class Alien:
         self.actor.setCollideMask(BitMask32.allOn())
         self.initial_pos = initial_pos
         self.node.set_pos(*initial_pos)
-        self.actor.loop("CharacterArmature|Idle")
+        self.actor.loop("CharacterArmature|Shoot")
         self.hp = 100
 
     def take_damage(self, damage):
@@ -229,6 +238,12 @@ class Alien:
             return True
         return False
 
+
+class Gun:
+    def __init__(self, node, model):
+        self.node = node
+        self.model = model
+        self.model.reparent_to(self.node)
 
 game = Game()
 game.run()
