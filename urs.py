@@ -86,8 +86,8 @@ class Terrain(Mesh):
 if __name__ == '__main__':
     app = Ursina()
     '''Terrain using an RGB texture as input'''
-    tex = Texture("grayscale.jpg")
-    terrain_entity = Entity(model=Terrain(tex, skip=4), scale=(400,10,200), texture=Texture("heightmap.jpg"))
+    tex = Texture("assets/grayscale.jpg")
+    terrain_entity = Entity(model=Terrain(tex, skip=4), scale=(400,10,200), texture=Texture("assets/heightmap.jpg"))
     hv = terrain_entity.model.height_values.tolist()
     #EditorCamera()
     Sky()
