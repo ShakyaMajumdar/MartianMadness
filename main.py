@@ -20,7 +20,7 @@ class Game(ShowBase):
         self.center = None
         self.set_center()
 
-        self.mouse_sensitivity = 10
+        self.mouse_sensitivity = 20
 
         self.rot_v = 0
         self.rot_h = 0
@@ -118,12 +118,7 @@ class Game(ShowBase):
             velocity.x = -speed.z * dt
         if self.mouseWatcherNode.is_button_down(KeyboardButton.space()):
             if self.player.lifter.isOnGround():
-                self.player.fall_speed = math.sqrt(20 * 4.8)
-        if not self.player.lifter.isOnGround():
-            self.player.fall_speed += -9.81 * dt
-        if self.player.lifter.isOnGround and self.player.fall_speed < 0:
-            self.player_fall_speed = -1
-        velocity.z = self.player.fall_speed * dt
+                self.player.lifter.set_velocity(math.sqrt(2 * 0.3))
         self.player.node.set_pos(self.player.node, *velocity)
         return Task.cont
 
@@ -183,7 +178,7 @@ class Player:
         self.actor = Actor("assets/models/player.bam")
         self.actor.reparent_to(self.node)
         self.node.set_pos(0, 0, 1)
-        self.actor.loop("Idle")
+        #self.actor.loop("Idle")
 
         push_col_node = self.node.attachNewNode(CollisionNode("push_col_node"))
         push_col_node.node().addSolid(CollisionSphere(0, 0, 0, 1))
@@ -199,7 +194,7 @@ class Player:
         lift_col_node.node().setFromCollideMask(ground_mask)
         lift_col_node.node().setIntoCollideMask(0)
         self.lifter = CollisionHandlerGravity()
-        self.lifter.setGravity(0)
+        self.lifter.set_gravity(0.5)
         self.lifter.addCollider(lift_col_node, self.node)
         cTrav.addCollider(lift_col_node, self.lifter)
 
