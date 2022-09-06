@@ -57,9 +57,9 @@ class Game(ShowBase):
             alien.node.node().setIntoCollideMask(enemy_mask)
             self.aliens[f"alien{i}_node"] = alien
 
-        crosshair = OnscreenImage(image="assets/textures/crosshair.png", pos=(0, 0, 0))
+        crosshair = OnscreenImage(image="assets/textures/cross.png", pos=(0, 0, 0))
         crosshair.setTransparency(TransparencyAttrib.MAlpha)
-        crosshair.setScale(0.01)
+        crosshair.setScale(0.1)
 
         self.task_mgr.add(self.mouse_look_task, "mouse_look_task")
         self.task_mgr.add(self.player_movement_task, "player_movement_task")
