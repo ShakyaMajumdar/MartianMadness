@@ -1,4 +1,5 @@
 import re
+import math
 import sys
 
 from direct.actor.Actor import Actor
@@ -105,20 +106,24 @@ class Game(ShowBase):
 
     def player_movement_task(self, _task):
         velocity = Vec3(0, 0, 0)
+        dt = globalClock.getDt()
+        speed = Vec4(25, 20, 10, 25) # front, back, sideways, up
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("w")):
-            velocity.y = 0.25
+            velocity.y = speed.x * dt
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("s")):
-            velocity.y = -0.07
+            velocity.y = -speed.y * dt
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("d")):
-            velocity.x = 0.10
+            velocity.x = speed.z * dt
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("a")):
-            velocity.x = -0.10
+            velocity.x = -speed.z * dt
         if self.mouseWatcherNode.is_button_down(KeyboardButton.space()):
-            if (
-                self.player.lifter.getAirborneHeight() < 2
-                and self.player.lifter.get_velocity() >= -0.1
-            ):
-                velocity.z = 0.2
+            if self.player.lifter.isOnGround():
+                self.player.fall_speed = math.sqrt(20 * 4.8)
+        if not self.player.lifter.isOnGround():
+            self.player.fall_speed += -9.81 * dt
+        if self.player.lifter.isOnGround and self.player.fall_speed < 0:
+            self.player_fall_speed = -1
+        velocity.z = self.player.fall_speed * dt
         self.player.node.set_pos(self.player.node, *velocity)
         return Task.cont
 
@@ -173,6 +178,8 @@ class Player:
         self.camera = self.node.attachNewNode(self.cam)
         self.camera.set_pos(0, 0.35, 1.75)
 
+        self.fall_speed = -1
+
         self.actor = Actor("assets/models/player.bam")
         self.actor.reparent_to(self.node)
         self.node.set_pos(0, 0, 1)
@@ -192,8 +199,8 @@ class Player:
         lift_col_node.node().setFromCollideMask(ground_mask)
         lift_col_node.node().setIntoCollideMask(0)
         self.lifter = CollisionHandlerGravity()
+        self.lifter.setGravity(0)
         self.lifter.addCollider(lift_col_node, self.node)
-        self.lifter.setGravity(0.1)
         cTrav.addCollider(lift_col_node, self.lifter)
 
         gun_ray_node = CollisionNode("gun_ray_node")
