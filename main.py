@@ -18,6 +18,7 @@ enemy_mask = BitMask32(0b1000)
 class Game(ShowBase):
     def __init__(self):
         super().__init__()
+        self.set_background_color(0.7529, 0.6196, 0.3921)
 
         self.center = None
         self.set_center()
@@ -31,12 +32,12 @@ class Game(ShowBase):
         self.environment.reparent_to(self.render)
         self.environment.setCollideMask(ground_mask)
 
-        self.spaceSkyBox = self.loader.loadModel("assets/models/skybox.bam")
+        '''self.spaceSkyBox = self.loader.loadModel("assets/models/skybox.bam")
         self.spaceSkyBox.setScale(100)
         self.spaceSkyBox.setBin("background", 0)
         self.spaceSkyBox.setDepthWrite(0)
         self.spaceSkyBox.setTwoSided(True)
-        self.spaceSkyBox.reparent_to(self.render)
+        self.spaceSkyBox.reparent_to(self.render)'''
 
         self.light = self.render.attach_new_node(PointLight("light"))
         self.light.set_pos(0, 10, 5)
