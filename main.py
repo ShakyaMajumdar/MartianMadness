@@ -1,12 +1,12 @@
-import re
 import math
 import sys
 
 from direct.actor.Actor import Actor
 from direct.gui.OnscreenImage import OnscreenImage
 from direct.showbase.ShowBase import ShowBase
+from direct.showbase.ShowBaseGlobal import globalClock
 from direct.task import Task
-from direct.interval.IntervalGlobal import *
+
 
 from panda3d.core import *
 
@@ -15,6 +15,8 @@ loadPrcFileData("", "win-size 1200 720")
 ground_mask = BitMask32(0b10)
 wall_mask = BitMask32(0b100)
 enemy_mask = BitMask32(0b1000)
+sky_mask = BitMask32(0b10000)
+player_mask = BitMask32(0b100000)
 
 
 class Game(ShowBase):
@@ -27,9 +29,6 @@ class Game(ShowBase):
         self.set_center()
 
         self.mouse_sensitivity = 20
-
-        self.rot_v = 0
-        self.rot_h = 0
 
         self.environment = self.loader.load_model("assets/models/terrain.bam")
         self.environment.reparent_to(self.render)
@@ -62,19 +61,22 @@ class Game(ShowBase):
         player_node.reparent_to(self.render)
         self.player = Player(player_node, self.cTrav)
 
-        gun_node = NodePath("gun_node")
-        self.gun = Gun(gun_node, self.loader.loadModel("assets/models/gun.gltf"))
-        self.gun.node.set_h(90)
-        self.gun.node.set_r(-5)
-        self.gun.node.set_pos(Vec3(0.3, 2, -0.4))
-        self.gun.node.reparent_to(self.player.camera)
-
-        self.aliens = {}
-        for i in range(10):
-            alien = Alien(NodePath(f"alien{i}_node"), (i * 3 - 15, 10, 1))
+        self.enemy_bullet_hit_queue = CollisionHandlerQueue()
+        for i in range(5):
+            alien = Alien(
+                NodePath(f"alien{i}_node"),
+                (i * 3 - 15, 10, 1),
+                self.player,
+                self.loader,
+                self.render,
+                self.task_mgr,
+                self.cTrav,
+                self.enemy_bullet_hit_queue
+            )
             alien.node.reparent_to(self.render)
-            alien.node.node().setIntoCollideMask(enemy_mask)
-            self.aliens[f"alien{i}_node"] = alien
+            alien.node.setCollideMask(enemy_mask)
+            alien.node.setPythonTag("alien", alien)
+            self.task_mgr.doMethodLater(5, alien.update_task, f"alien{id(alien)}_update")
 
         crosshair = OnscreenImage(image="assets/textures/cross.png", pos=(0, 0, 0))
         crosshair.setTransparency(TransparencyAttrib.MAlpha)
@@ -82,7 +84,7 @@ class Game(ShowBase):
 
         self.task_mgr.add(self.mouse_look_task, "mouse_look_task")
         self.task_mgr.add(self.player_movement_task, "player_movement_task")
-        self.task_mgr.do_method_later(1, self.update_aliens_task, "update_aliens_task")
+        # self.task_mgr.do_method_later(1, self.update_aliens_task, "update_aliens_task")
 
         props = WindowProperties()
         props.setCursorHidden(True)
@@ -114,11 +116,10 @@ class Game(ShowBase):
         if self.mouseWatcherNode.hasMouse():
             mx = self.mouseWatcherNode.getMouseX()
             my = self.mouseWatcherNode.getMouseY()
-            self.rot_h += -1 * self.mouse_sensitivity * mx
-            self.rot_v += self.mouse_sensitivity * my
-            self.rot_v = min(90, max(-90, self.rot_v))
-            self.player.node.set_hpr(self.rot_h, 0, 0)
-            self.player.actor.set_h(180)
+            self.player.rot_h += -1 * self.mouse_sensitivity * mx
+            self.player.rot_v += self.mouse_sensitivity * my
+            self.rot_v = min(90, max(-90, self.player.rot_v))
+            self.player.node.set_hpr(self.player.rot_h, 0, 0)
             self.player.camera.set_p(self.rot_v)
         self.win.movePointer(0, *self.center)
         return Task.cont
@@ -145,44 +146,24 @@ class Game(ShowBase):
 
     def fire_bullet(self):
         for entry in self.player.gun_queue.entries:
-            alien = self._get_alien_from_hit_entry(entry)
+            alien = entry.getIntoNodePath().getNetPythonTag("alien")
             if not alien:
                 continue
 
             def cb(alien=alien):
-                self.aliens.pop(alien.node.name)
                 alien.node.remove_node()
+                self.task_mgr.remove(f"alien{id(alien)}_update")
 
             if alien.take_damage(20):
                 alien.actor.play("CharacterArmature|Death")
                 self.task_mgr.doMethodLater(2, cb, "dead_alien_remove", extraArgs=[])
 
-    def _get_alien_from_hit_entry(self, entry):
-        target = entry.getIntoNodePath()
-        if not (alien_node_name := re.search(r"alien\d+_node", str(target))):
-            return
-        alien_node_name = alien_node_name.group(0)
-        return self.aliens.get(alien_node_name)
-
-    def update_aliens_task(self, _task):
-        for alien in self.aliens.values():
-            alien.node.lookAt(self.player.node)
-            bullet = NodePath("bullet")
-            bullet.reparent_to(self.render)
-            m = self.loader.load_model("assets/models/ball.bam")
-            m.setScale(0.05)
-            m.reparent_to(bullet)
-            bullet.set_pos(alien.node.get_pos())
-            bullet.lookAt(self.player.node)
-
-            def cb(task, bullet=bullet):
-                bullet.set_pos(bullet, 0, 0.6, 0)
-                return task.cont
-
-            self.task_mgr.add(cb, "bullet_update")
-            alien.actor.set_h(180)
-
-        return Task.again
+    def check_enemy_bullets_task(self, task):
+        for entry in self.enemy_bullet_hit_queue.entries:
+            bullet = entry.getFromNodePath().getPythonTag("bullet")
+            bullet.remove_node()
+            self.task_mgr.remove(f"bullet{id(bullet)}_update")
+        return task.cont
 
 
 class Player:
@@ -194,12 +175,14 @@ class Player:
         self.camera.set_pos(0, 0.35, 1.75)
 
         self.fall_speed = -1
+        self.rot_h = self.rot_v = 0
 
         self.actor = Actor("assets/models/player.bam")
         self.actor.reparent_to(self.node)
         self.node.set_pos(0, 0, 1)
         # self.actor.loop("Idle")
 
+        self.node.setCollideMask(player_mask)
         push_col_node = self.node.attachNewNode(CollisionNode("push_col_node"))
         push_col_node.node().addSolid(CollisionSphere(0, 0, 0, 1))
         push_col_node.set_pos(0, 0, 1.5)
@@ -230,11 +213,18 @@ class Player:
 
 
 class Alien:
-    def __init__(self, node, initial_pos):
+    def __init__(self, node, initial_pos, player, loader, render, task_mgr, cTrav, enemy_bullet_hit_queue):
         self.node = node
+        self.player = player
+        self.loader = loader
+        self.render = render
+        self.task_mgr = task_mgr
+        self.cTrav = cTrav
+        self.enemy_bullet_hit_queue = enemy_bullet_hit_queue
         self.actor = Actor("assets/models/alien.bam")
         self.actor.reparent_to(self.node)
         self.actor.setScale(0.4, 0.5, 0.5)
+        self.actor.set_h(180)
         self.actor.setCollideMask(BitMask32.allOn())
         self.initial_pos = initial_pos
         self.node.set_pos(*initial_pos)
@@ -248,6 +238,38 @@ class Alien:
         if self.hp <= 0:
             return True
         return False
+
+    def update_task(self, task):
+        self.node.lookAt(self.player.node)
+        bullet = NodePath("bullet")
+        bullet.reparent_to(self.render)
+        m = self.loader.load_model("assets/models/ball.bam")
+        m.setScale(0.05)
+        m.reparent_to(bullet)
+        bullet.set_pos(self.node.get_pos())
+        bullet.lookAt(self.player.node)
+
+        bullet_col_node = CollisionNode("bullet_col_node")
+        bullet_col_node_path = bullet.attachNewNode(bullet_col_node)
+        bullet_cs = CollisionSphere(0, 0, 0, 0.01)
+        bullet_col_node_path.show()
+        bullet_col_node_path.setPythonTag("bullet", bullet)
+
+        bullet_col_node.addSolid(bullet_cs)
+        bullet_col_node.setFromCollideMask(sky_mask | ground_mask | player_mask)
+        bullet_col_node.setIntoCollideMask(0)
+        self.cTrav.addCollider(bullet_col_node_path, self.enemy_bullet_hit_queue)
+
+        def cb(task, bullet=bullet):
+            bullet.set_pos(bullet, 0, 0.5, 0)
+            d = float(bullet.getTag("dist") or 0)
+            if d > 50:
+                bullet.remove_node()
+                return task.done
+            bullet.setTag("dist", str(d + 0.5))
+            return task.cont
+        self.task_mgr.add(cb, f"update{id(bullet)}_task")
+        return task.again
 
 
 class Gun:
