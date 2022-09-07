@@ -6,9 +6,11 @@ from direct.actor.Actor import Actor
 from direct.gui.OnscreenImage import OnscreenImage
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
+from direct.interval.IntervalGlobal import *
+
 from panda3d.core import *
-  
-loadPrcFileData('', 'win-size 1200 720')
+
+loadPrcFileData("", "win-size 1200 720")
 
 ground_mask = BitMask32(0b10)
 wall_mask = BitMask32(0b100)
@@ -18,7 +20,8 @@ enemy_mask = BitMask32(0b1000)
 class Game(ShowBase):
     def __init__(self):
         super().__init__()
-        self.set_background_color(0.7529, 0.6196, 0.3921)
+        atmosphere_col = 0.7529, 0.6196, 0.3921
+        self.set_background_color(*atmosphere_col)
 
         self.center = None
         self.set_center()
@@ -32,20 +35,26 @@ class Game(ShowBase):
         self.environment.reparent_to(self.render)
         self.environment.setCollideMask(ground_mask)
 
-        '''self.spaceSkyBox = self.loader.loadModel("assets/models/skybox.bam")
+        expfog = Fog("scene-wide-fog")
+        expfog.setColor(*atmosphere_col)
+        expfog.setExpDensity(0.004)
+        self.render.setFog(expfog)
+
+        """self.spaceSkyBox = self.loader.loadModel("assets/models/skybox.bam")
         self.spaceSkyBox.setScale(100)
         self.spaceSkyBox.setBin("background", 0)
         self.spaceSkyBox.setDepthWrite(0)
         self.spaceSkyBox.setTwoSided(True)
-        self.spaceSkyBox.reparent_to(self.render)'''
+        self.spaceSkyBox.reparent_to(self.render)"""
 
-        self.light = self.render.attach_new_node(PointLight("light"))
-        self.light.set_pos(0, 10, 5)
-        self.render.set_light(self.light)
-        alight = AmbientLight("alight")
-        alnp = self.render.attachNewNode(alight)
-        alight.setColor((0.1, 0.1, 0.1, 1))
-        self.render.setLight(alnp)
+        ambientLight = AmbientLight("ambientLight")
+        ambientLight.setColor(Vec4(0.6, 0.6, 0.6, 1))
+        directionalLight = DirectionalLight("directionalLight")
+        directionalLight.setDirection(Vec3(0, -10, -10))
+        directionalLight.setColor(Vec4(1, 1, 1, 1))
+        directionalLight.setSpecularColor(Vec4(1, 1, 1, 1))
+        self.render.setLight(self.render.attachNewNode(ambientLight))
+        self.render.setLight(self.render.attachNewNode(directionalLight))
 
         self.cTrav = CollisionTraverser()
 
@@ -117,7 +126,7 @@ class Game(ShowBase):
     def player_movement_task(self, _task):
         velocity = Vec3(0, 0, 0)
         dt = globalClock.getDt()
-        speed = Vec3(20, 15, 10) # front, back, sideways
+        speed = Vec3(20, 15, 10)  # front, back, sideways
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("w")):
             velocity.y = speed.x * dt
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("s")):
@@ -126,14 +135,15 @@ class Game(ShowBase):
             velocity.x = speed.z * dt
         if self.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("a")):
             velocity.x = -speed.z * dt
-        if self.mouseWatcherNode.is_button_down(KeyboardButton.space()):
-            if self.player.lifter.isOnGround():
-                self.player.lifter.set_velocity(math.sqrt(2 * 0.3))
+        if (
+            self.mouseWatcherNode.is_button_down(KeyboardButton.space())
+            and self.player.lifter.isOnGround()
+        ):
+            self.player.lifter.set_velocity(math.sqrt(2 * 0.3))
         self.player.node.set_pos(self.player.node, *velocity)
         return Task.cont
 
     def fire_bullet(self):
-
         for entry in self.player.gun_queue.entries:
             alien = self._get_alien_from_hit_entry(entry)
             if not alien:
@@ -188,7 +198,7 @@ class Player:
         self.actor = Actor("assets/models/player.bam")
         self.actor.reparent_to(self.node)
         self.node.set_pos(0, 0, 1)
-        #self.actor.loop("Idle")
+        # self.actor.loop("Idle")
 
         push_col_node = self.node.attachNewNode(CollisionNode("push_col_node"))
         push_col_node.node().addSolid(CollisionSphere(0, 0, 0, 1))
@@ -245,6 +255,7 @@ class Gun:
         self.node = node
         self.model = model
         self.model.reparent_to(self.node)
+
 
 game = Game()
 game.run()
