@@ -350,6 +350,8 @@ class Game:
         self.base.task_mgr.remove("mouse_look_task")
         self.base.task_mgr.remove("player_movement_task")
         self.base.task_mgr.remove("check_enemy_bullets_task")
+        self.base.task_mgr.removeTasksMatching("bullet*")
+        self.base.task_mgr.removeTasksMatching("alien*")
         self.props.setCursorHidden(False)
         self.base.win.requestProperties(self.props)
 
