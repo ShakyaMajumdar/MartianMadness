@@ -240,7 +240,12 @@ class Game:
         player_node = NodePath("player_node")
         player_node.reparent_to(base.render)
         self.player = Player(player_node, base.cTrav)
-
+        gun_node = NodePath("gun_node")
+        self.gun = Gun(gun_node, self.base.loader.loadModel("assets/models/gun.gltf"))
+        self.gun.node.set_h(90)
+        self.gun.node.set_r(-5)
+        self.gun.node.set_pos(Vec3(0.3, 2, -0.4))
+        self.gun.node.reparent_to(self.player.camera)
         self.enemy_bullet_hit_queue = CollisionHandlerQueue()
         for i in range(5):
             alien = Alien(
@@ -258,9 +263,9 @@ class Game:
             alien.node.setPythonTag("alien", alien)
             base.task_mgr.doMethodLater(5, alien.update_task, f"alien{id(alien)}_update")
 
-        crosshair = OnscreenImage(image="assets/textures/cross.png", pos=(0, 0, 0))
-        crosshair.setTransparency(TransparencyAttrib.MAlpha)
-        crosshair.setScale(0.1)
+        self.crosshair = OnscreenImage(image="assets/textures/cross.png", pos=(0, 0, 0))
+        self.crosshair.setTransparency(TransparencyAttrib.MAlpha)
+        self.crosshair.setScale(0.1)
 
         base.task_mgr.add(self.mouse_look_task, "mouse_look_task")
         base.task_mgr.add(self.player_movement_task, "player_movement_task")
@@ -273,21 +278,8 @@ class Game:
         base.accept("mouse1", self.fire_bullet)
         base.accept("aspectRatioChanged", self.set_center)
         base.accept("escape", lambda: self.fsm.request("MainMenu"))
-
-        debug_cam = Camera("debug_cam")
-        debug_camera = base.render.attachNewNode(debug_cam)
-        debug_camera.set_pos(0, 2, 1)
-        debug_camera.lookAt(self.player.node)
         dr = base.camNode.getDisplayRegion(0)
         dr.setCamera(self.player.camera)
-        # dr.setActive(0)
-        # window = dr.getWindow()
-        # dr1 = window.makeDisplayRegion(0, 0.5, 0, 1)
-        # dr1.setSort(dr.getSort())
-        # dr2 = window.makeDisplayRegion(0.5, 1, 0, 1)
-        # dr2.setSort(dr.getSort())
-        # dr1.setCamera(self.player_camera)
-        # dr2.setCamera(debug_camera)
 
     def set_center(self):
         self.center = (self.base.win.getXSize() // 2, self.base.win.getYSize() // 2)
@@ -346,12 +338,14 @@ class Game:
         return task.cont
 
     def destroy(self):
+        self.player.camera.node().getDisplayRegion(0).setCamera(self.base.cam)
         self.base.render.node().removeAllChildren()
         self.base.task_mgr.remove("mouse_look_task")
         self.base.task_mgr.remove("player_movement_task")
         self.base.task_mgr.remove("check_enemy_bullets_task")
         self.base.task_mgr.removeTasksMatching("bullet*")
         self.base.task_mgr.removeTasksMatching("alien*")
+        self.crosshair.destroy()
         self.props.setCursorHidden(False)
         self.base.win.requestProperties(self.props)
 
