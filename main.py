@@ -90,7 +90,7 @@ class Player:
         self.hp -= damage
         self.hp_bar.setHealth(self.hp/100)
         if self.hp <= 0:
-            self.fsm.request("MainMenu")
+            self.fsm.request("DeadScreen")
 
 
 class Alien:
@@ -189,6 +189,12 @@ class AppStateFSM(FSM):
     def exitCredits(self):
         self.credits.destroy()
 
+    def enterDeadScreen(self):
+        self.dead_screen = DeadScreen(self)
+
+    def exitDeadScreen(self):
+        self.dead_screen.destroy()
+
 
 class MainMenu:
     def __init__(self, fsm):
@@ -230,6 +236,18 @@ class Credits:
     def destroy(self):
         self.text.destroy()
         self.back_button.destroy()
+
+
+class DeadScreen:
+    def __init__(self, fsm):
+        self.text = OnscreenText("YOU DIED!", fg=(1, 1, 1, 1), pos=(0, 0.4))
+        self.menu_button = make_button("BACK TO MENU", lambda: fsm.request("MainMenu"), (0, 0, -0.6))
+        self.again_button = make_button("PLAY AGAIN", lambda: fsm.request("Game"), (0, 0, -0.8))
+
+    def destroy(self):
+        self.text.destroy()
+        self.menu_button.destroy()
+        self.again_button.destroy()
 
 
 class Game:
@@ -316,7 +334,7 @@ class Game:
         base.win.requestProperties(self.props)
 
         base.accept("aspectRatioChanged", self.set_center)
-        base.accept("escape", lambda: self.fsm.request("MainMenu"))
+        base.accept("escape", lambda: self.fsm.request("DeadScreen"))
         dr = base.camNode.getDisplayRegion(0)
         dr.setCamera(self.player.camera)
 
