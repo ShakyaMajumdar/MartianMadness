@@ -221,6 +221,11 @@ class Game:
         self.environment.reparent_to(base.render)
         self.environment.setCollideMask(ground_mask)
 
+        self.boundary_mountains = base.loader.load_model("assets/models/mountain.bam")
+        self.boundary_mountains.reparent_to(base.render)
+        self.boundary_mountains.set_pos(0, 0, -0.5)
+        self.boundary_mountains.setCollideMask(wall_mask)
+
         expfog = Fog("scene-wide-fog")
         expfog.setColor(*atmosphere_col)
         expfog.setExpDensity(0.004)
