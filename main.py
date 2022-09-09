@@ -283,12 +283,12 @@ class Game:
 
         base.task_mgr.add(self.mouse_look_task, "mouse_look_task")
         base.task_mgr.add(self.player_movement_task, "player_movement_task")
+        base.task_mgr.doMethodLater(0.25, self.fire_bullet_task, "fire_bullet_task")
 
         self.props = WindowProperties()
         self.props.setCursorHidden(True)
         base.win.requestProperties(self.props)
 
-        base.accept("mouse1", self.fire_bullet)
         base.accept("aspectRatioChanged", self.set_center)
         base.accept("escape", lambda: self.fsm.request("MainMenu"))
         dr = base.camNode.getDisplayRegion(0)
@@ -329,7 +329,9 @@ class Game:
         self.player.node.set_pos(self.player.node, *velocity)
         return Task.cont
 
-    def fire_bullet(self):
+    def fire_bullet_task(self, task):
+        if not self.base.mouseWatcherNode.is_button_down(MouseButton.one()):
+            return task.cont
         for entry in self.player.gun_queue.entries:
             alien = entry.getIntoNodePath().getNetPythonTag("alien")
             if not alien:
@@ -342,6 +344,7 @@ class Game:
             if alien.take_damage(5):
                 alien.actor.play("CharacterArmature|Death")
                 self.base.task_mgr.doMethodLater(2, cb, "dead_alien_remove", extraArgs=[])
+        return task.again
 
     def check_enemy_bullets_task(self, task):
         for entry in self.enemy_bullet_hit_queue.entries:
@@ -356,6 +359,7 @@ class Game:
         self.base.task_mgr.remove("mouse_look_task")
         self.base.task_mgr.remove("player_movement_task")
         self.base.task_mgr.remove("check_enemy_bullets_task")
+        self.base.task_mgr.remove("fire_bullet_task")
         self.base.task_mgr.removeTasksMatching("bullet*")
         self.base.task_mgr.removeTasksMatching("alien*")
         self.crosshair.destroy()
