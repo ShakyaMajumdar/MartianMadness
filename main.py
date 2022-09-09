@@ -5,7 +5,6 @@ from direct.actor.Actor import Actor
 from direct.fsm.FSM import FSM
 from direct.gui import DirectGuiGlobals
 from direct.gui.DirectButton import DirectButton
-from direct.gui.DirectWaitBar import DirectWaitBar
 from direct.gui.OnscreenImage import OnscreenImage
 from direct.gui.OnscreenText import OnscreenText
 from direct.showbase.ShowBase import ShowBase
@@ -77,6 +76,7 @@ class Player:
         self.gun_queue = CollisionHandlerQueue()
         cTrav.addCollider(gun_ray_node_path, self.gun_queue)
         self.node.set_scale(self.node, 0.1)
+        self.node.set_pos(-8, -8, 1)
 
 
 class Alien:
@@ -248,6 +248,12 @@ class Game:
         base.render.setLight(base.render.attachNewNode(directionalLight))
 
         base.cTrav = CollisionTraverser()
+
+        self.rover = base.loader.load_model("assets/models/rover.bam")
+        self.rover.reparent_to(base.render)
+        self.rover.set_pos(2, 3, 0.5)
+        self.rover.set_scale(0.3)
+        self.rover.setCollideMask(wall_mask)
 
         player_node = NodePath("player_node")
         player_node.reparent_to(base.render)
