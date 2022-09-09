@@ -5,6 +5,7 @@ from direct.actor.Actor import Actor
 from direct.fsm.FSM import FSM
 from direct.gui import DirectGuiGlobals
 from direct.gui.DirectButton import DirectButton
+from direct.gui.DirectWaitBar import DirectWaitBar
 from direct.gui.OnscreenImage import OnscreenImage
 from direct.gui.OnscreenText import OnscreenText
 from direct.showbase.ShowBase import ShowBase
@@ -96,11 +97,17 @@ class Alien:
         self.node.set_pos(*initial_pos)
         self.actor.loop("CharacterArmature|Shoot")
         self.hp = 100
+        self.hp_bar = HealthBar()
+        self.hp_bar.reparent_to(self.node)
+        self.hp_bar.setBillboardPointEye(-10, fixed_depth=True)
+        self.hp_bar.setScale(0.5)
+        self.hp_bar.setPos(0, 0, 0.5)
 
     def take_damage(self, damage):
         if self.hp <= 0:
             return False
         self.hp -= damage
+        self.hp_bar.setHealth(self.hp/100)
         if self.hp <= 0:
             return True
         return False
@@ -252,10 +259,12 @@ class Game:
         self.gun.node.set_pos(Vec3(0.3, 2, -0.4))
         self.gun.node.reparent_to(self.player.camera)
         self.enemy_bullet_hit_queue = CollisionHandlerQueue()
+        alien_centre = Vec3(2, 3, 1)
+        alien_radius = 4
         for i in range(5):
             alien = Alien(
                 NodePath(f"alien{i}_node"),
-                (i * 3 - 15, 10, 1),
+                alien_centre + Vec3(alien_radius * math.cos(2 * math.pi / 5 * i), alien_radius * math.sin(2 * math.pi / 5 * i), 0),
                 self.player,
                 base.loader,
                 base.render,
@@ -274,7 +283,6 @@ class Game:
 
         base.task_mgr.add(self.mouse_look_task, "mouse_look_task")
         base.task_mgr.add(self.player_movement_task, "player_movement_task")
-        # self.task_mgr.do_method_later(1, self.update_aliens_task, "update_aliens_task")
 
         self.props = WindowProperties()
         self.props.setCursorHidden(True)
@@ -331,7 +339,7 @@ class Game:
                 alien.node.remove_node()
                 self.base.task_mgr.remove(f"alien{id(alien)}_update")
 
-            if alien.take_damage(20):
+            if alien.take_damage(5):
                 alien.actor.play("CharacterArmature|Death")
                 self.base.task_mgr.doMethodLater(2, cb, "dead_alien_remove", extraArgs=[])
 
@@ -375,6 +383,29 @@ class Gun:
         self.node = node
         self.model = model
         self.model.reparent_to(self.node)
+
+
+class HealthBar(NodePath):
+    def __init__(self):
+        NodePath.__init__(self, 'healthbar')
+
+        cmfg = CardMaker('fg')
+        cmfg.setFrame(0, 1, -0.1, 0.1)
+        self.fg = self.attachNewNode(cmfg.generate())
+
+        cmbg = CardMaker('bg')
+        cmbg.setFrame(-1, 0, -0.1, 0.1)
+        self.bg = self.attachNewNode(cmbg.generate())
+        self.bg.setPos(1, 0, 0)
+
+        self.fg.setColor(0, 1, 0, 1)
+        self.bg.setColor(0.5, 0.5, 0.5, 1)
+
+        self.setHealth(1)
+
+    def setHealth(self, value):
+        self.fg.setScale(value, 1, 1)
+        self.bg.setScale(1.0 - value, 1, 1)
 
 
 app = App()
