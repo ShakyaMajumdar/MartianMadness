@@ -33,9 +33,11 @@ class App(ShowBase):
 
 
 class Player:
-    def __init__(self, node, cTrav):
+    def __init__(self, node, cTrav, base, fsm):
         self.node = node
-
+        self.node.setTag("player", "1")
+        self.base = base
+        self.fsm = fsm
         self.cam = Camera("player_cam")
         self.camera = self.node.attachNewNode(self.cam)
         self.camera.set_pos(0, 0.35, 1.75)
@@ -77,6 +79,18 @@ class Player:
         cTrav.addCollider(gun_ray_node_path, self.gun_queue)
         self.node.set_scale(self.node, 0.1)
         self.node.set_pos(-8, -8, 1)
+
+        self.hp = 100
+        self.hp_bar = HealthBar()
+        self.hp_bar.reparent_to(self.base.aspect2d)
+        self.hp_bar.setScale(1, 1, 0.5)
+        self.hp_bar.setPos(0, 0, -0.75)
+
+    def take_damage(self, damage):
+        self.hp -= damage
+        self.hp_bar.setHealth(self.hp/100)
+        if self.hp <= 0:
+            self.fsm.request("MainMenu")
 
 
 class Alien:
@@ -134,14 +148,15 @@ class Alien:
         self.cTrav.addCollider(bullet_col_node_path, self.enemy_bullet_hit_queue)
 
         def cb(task, bullet=bullet):
-            bullet.set_pos(bullet, 0, 0.5, 0)
+            bullet.set_fluid_pos(bullet, 0, 0.5, 0)
+
             d = float(bullet.getTag("dist") or 0)
             if d > 50:
                 bullet.remove_node()
                 return task.done
             bullet.setTag("dist", str(d + 0.5))
             return task.cont
-        self.task_mgr.add(cb, f"update{id(bullet)}_task")
+        self.task_mgr.add(cb, f"bullet{id(bullet)}_update")
         return task.again
 
 
@@ -207,6 +222,9 @@ class HowToPlay:
 class Credits:
     def __init__(self, fsm):
         self.text = OnscreenText("Generic Placeholder", fg=(1, 1, 1, 1), pos=(0, 0.7), wordwrap=35)
+        # TODO:
+        # Mini Fantasy Tank by Maxwell Planck [CC-BY], via Poly Pizza
+        # Robot Enemy Legs by Quaternius
         self.back_button = make_button("BACK", lambda: fsm.request("MainMenu"), (0, 0, -0.75))
 
     def destroy(self):
@@ -248,6 +266,7 @@ class Game:
         base.render.setLight(base.render.attachNewNode(directionalLight))
 
         base.cTrav = CollisionTraverser()
+        base.cTrav.setRespectPrevTransform(True)
 
         self.rover = base.loader.load_model("assets/models/rover.bam")
         self.rover.reparent_to(base.render)
@@ -257,7 +276,7 @@ class Game:
 
         player_node = NodePath("player_node")
         player_node.reparent_to(base.render)
-        self.player = Player(player_node, base.cTrav)
+        self.player = Player(player_node, base.cTrav, base, self.fsm)
         gun_node = NodePath("gun_node")
         self.gun = Gun(gun_node, self.base.loader.loadModel("assets/models/gun.gltf"))
         self.gun.node.set_h(90)
@@ -289,6 +308,7 @@ class Game:
 
         base.task_mgr.add(self.mouse_look_task, "mouse_look_task")
         base.task_mgr.add(self.player_movement_task, "player_movement_task")
+        base.task_mgr.add(self.check_enemy_bullets_task, "check_enemy_bullets_task")
         base.task_mgr.doMethodLater(0.25, self.fire_bullet_task, "fire_bullet_task")
 
         self.props = WindowProperties()
@@ -357,11 +377,14 @@ class Game:
             bullet = entry.getFromNodePath().getPythonTag("bullet")
             bullet.remove_node()
             self.base.task_mgr.remove(f"bullet{id(bullet)}_update")
+            if entry.getIntoNodePath().findNetTag("player"):
+                self.player.take_damage(1)
         return task.cont
 
     def destroy(self):
         self.player.camera.node().getDisplayRegion(0).setCamera(self.base.cam)
         self.base.render.node().removeAllChildren()
+        self.player.hp_bar.remove_node()
         self.base.task_mgr.remove("mouse_look_task")
         self.base.task_mgr.remove("player_movement_task")
         self.base.task_mgr.remove("check_enemy_bullets_task")
@@ -402,11 +425,12 @@ class HealthBar(NodePath):
         cmfg = CardMaker('fg')
         cmfg.setFrame(0, 1, -0.1, 0.1)
         self.fg = self.attachNewNode(cmfg.generate())
+        self.fg.setPos(-0.5, 0, 0)
 
         cmbg = CardMaker('bg')
         cmbg.setFrame(-1, 0, -0.1, 0.1)
         self.bg = self.attachNewNode(cmbg.generate())
-        self.bg.setPos(1, 0, 0)
+        self.bg.setPos(0.5, 0, 0)
 
         self.fg.setColor(0, 1, 0, 1)
         self.bg.setColor(0.5, 0.5, 0.5, 1)
