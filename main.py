@@ -29,6 +29,10 @@ atmosphere_col = 0.7529, 0.6196, 0.3921
 class App(ShowBase):
     def __init__(self):
         super().__init__()
+        self.music = self.loader.loadSfx("assets/sfx/music.wav")
+        self.music.setVolume(0.5)
+        self.music.setLoop(True)
+        self.music.play()
         self.set_background_color(*atmosphere_col)
         fsm = AppStateFSM(self)
         fsm.request("MainMenu")
@@ -401,6 +405,9 @@ class LevelBase:
         self.crosshair.setTransparency(TransparencyAttrib.MAlpha)
         self.crosshair.setScale(0.1)
 
+        self.gun_sfx = self.base.loader.loadSfx("assets/sfx/gun.mp3")
+        self.hurt_sfx = self.base.loader.loadSfx("assets/sfx/hurt.mp3")
+
         base.task_mgr.add(self.mouse_look_task, "mouse_look_task")
         base.task_mgr.add(self.player_movement_task, "player_movement_task")
         base.task_mgr.add(self.check_enemy_bullets_task, "check_enemy_bullets_task")
@@ -476,6 +483,7 @@ class LevelBase:
     def fire_bullet_task(self, task):
         if not self.base.mouseWatcherNode.is_button_down(MouseButton.one()):
             return task.cont
+        self.gun_sfx.play()
         for entry in self.player.gun_queue.entries:
             alien = entry.getIntoNodePath().getNetPythonTag("alien")
             if not alien:
@@ -501,6 +509,7 @@ class LevelBase:
             bullet.remove_node()
             self.base.task_mgr.remove(f"bullet{id(bullet)}_update")
             if entry.getIntoNodePath().findNetTag("player"):
+                self.hurt_sfx.play()
                 self.player.take_damage(1)
         return task.cont
 
