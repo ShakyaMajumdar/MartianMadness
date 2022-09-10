@@ -262,6 +262,7 @@ class AppStateFSM(FSM):
 class MainMenu:
     def __init__(self, fsm):
         self.im = OnscreenImage("assets/logo.png", pos=(0, 0, 0.6), scale=(0.8, 1, 0.4))
+        self.im.setTransparency(TransparencyAttrib.MAlpha)
         self.title = OnscreenImage(
             "assets/title.png", pos=(0, 0, 0.1), scale=(0.8, 1, 0.12)
         )
@@ -453,7 +454,7 @@ class LevelBase:
     def player_movement_task(self, _task):
         velocity = Vec3(0, 0, 0)
         dt = globalClock.getDt()
-        speed = Vec3(40, 30, 20)  # front, back, sideways
+        speed = Vec3(100, 40, 30)  # front, back, sideways
         x, y, _z = self.player.node.get_pos()
         self.player.node.setX(min(max(1, x), 255))
         self.player.node.setY(min(max(1, y), 255))
@@ -671,10 +672,11 @@ def make_button(text, callback, pos):
         pos=pos,
         scale=(0.12, 1, 0.12),
         text_scale=(0.9, 0.9),
-        text_bg=(0, 0.085, 0.125, 1),
-        text_fg=(0, 0.7, 1, 1),
+
+        text_bg=(249/255, 161/255, 72/255, 1),
+        text_fg=(0, 0, 0, 1),
         relief=DirectGuiGlobals.GROOVE,
-        frameColor=(0, 0.35, 0.5, 1),
+        frameColor=(184/255, 64/255, 22/255, 1),
         text_shadow=(0, 0.0425, 0.0625, 1),
     )
 
