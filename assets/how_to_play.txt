@@ -1,5 +1,5 @@
-Aliens have taken over your rover and spaceship, leaving you stranded on Mars!
-Hunt them down and recover your possessions, so you can return home.
+Aliens have taken over your rover, leaving you stranded on Mars!
+Hunt all aliens down and recover your rover, so you can return home.
 
 Use WASD for moving around and space for jumping.
 Click the Left Mouse Button to use your gun.

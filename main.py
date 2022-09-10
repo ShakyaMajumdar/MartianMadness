@@ -1,3 +1,4 @@
+import datetime
 import math
 import sys
 import random
@@ -11,7 +12,6 @@ from direct.gui.OnscreenImage import OnscreenImage
 from direct.gui.OnscreenText import OnscreenText
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.ShowBaseGlobal import globalClock
-from direct.particles.ParticleEffect import ParticleEffect
 from direct.task import Task
 
 
@@ -196,8 +196,8 @@ class Alien:
 
 
 class WinScreen:
-    def __init__(self, fsm):
-        self.text = OnscreenText("YOU WON!", fg=(1, 1, 1, 1), pos=(0, 0.4))
+    def __init__(self, fsm, time_elapsed):
+        self.text = OnscreenText(f"YOU WON!\n\nTime: {time_elapsed}", fg=(1, 1, 1, 1), pos=(0, 0.4))
         self.menu_button = make_button(
             "BACK TO MENU", lambda: fsm.request("MainMenu"), (0, 0, -0.6)
         )
@@ -252,8 +252,8 @@ class AppStateFSM(FSM):
     def exitDeadScreen(self):
         self.dead_screen.destroy()
 
-    def enterWinScreen(self):
-        self.win_screen = WinScreen(self)
+    def enterWinScreen(self, time_elapsed):
+        self.win_screen = WinScreen(self, time_elapsed)
 
     def exitWinScreen(self):
         self.win_screen.destroy()
@@ -340,16 +340,6 @@ class LevelBase:
         self.set_center()
 
         self.mouse_sensitivity = 20
-        base.enableParticles()
-
-        # self.environment = base.loader.load_model("assets/models/terrain.bam")
-        # self.environment.reparent_to(base.render)
-        # self.environment.setCollideMask(ground_mask)
-
-        # self.boundary_mountains = base.loader.load_model("assets/models/mountain.bam")
-        # self.boundary_mountains.reparent_to(base.render)
-        # self.boundary_mountains.set_pos(0, 0, -0.5)
-        # self.boundary_mountains.setCollideMask(wall_mask)
 
         expfog = Fog("scene-wide-fog")
         expfog.setColor(*atmosphere_col)
@@ -371,7 +361,7 @@ class LevelBase:
         player_node = NodePath("player_node")
         player_node.reparent_to(base.render)
         self.player = Player(player_node, base.cTrav, base, self.fsm)
-        self.player.node.set_pos(0, 50, 0)
+        self.player.node.set_pos(23, 50, 0)
         gun_node = NodePath("gun_node")
         self.gun = Gun(gun_node, self.base.loader.loadModel("assets/models/gun.gltf"))
         self.gun.node.set_h(90)
@@ -421,6 +411,7 @@ class LevelBase:
         base.task_mgr.add(self.player_movement_task, "player_movement_task")
         base.task_mgr.add(self.check_enemy_bullets_task, "check_enemy_bullets_task")
         base.task_mgr.add(self.update_terrain_task, "update_terrain_task")
+        base.task_mgr.add(self.update_timer_task, "update_timer_task")
         base.task_mgr.doMethodLater(0.25, self.fire_bullet_task, "fire_bullet_task")
 
         self.minimap_pos = Vec3(-1.4, 0, 0.7)
@@ -439,6 +430,11 @@ class LevelBase:
             scale=(0.015, 1, 0.015),
         )
         self.pmm_image.setTransparency(TransparencyAttrib.MAlpha)
+
+        self.timer = OnscreenText("00:00", mayChange=True, pos=(0, -0.85))
+        self.timer.reparent_to(self.base.aspect2d)
+        self.start_time = datetime.datetime.now()
+        self.time_elapsed = None
 
         self.props = WindowProperties()
         self.props.setCursorHidden(True)
@@ -531,6 +527,13 @@ class LevelBase:
                 )
         return task.again
 
+    def update_timer_task(self, task):
+        delta = datetime.datetime.now() - self.start_time
+        minutes, seconds = divmod(round(delta.total_seconds()), 60)
+        self.time_elapsed = f"{minutes:>02}:{seconds:>02}"
+        self.timer.setText(self.time_elapsed)
+        return task.cont
+
     def check_enemy_bullets_task(self, task):
         for entry in self.enemy_bullet_hit_queue.entries:
             bullet = entry.getFromNodePath().getPythonTag("bullet")
@@ -547,11 +550,13 @@ class LevelBase:
         self.base.render.clearLight()
         self.player.hp_bar.remove_node()
         self.aliens_killed_bar.remove_node()
+        self.timer.remove_node()
         self.base.task_mgr.remove("mouse_look_task")
         self.base.task_mgr.remove("player_movement_task")
         self.base.task_mgr.remove("check_enemy_bullets_task")
         self.base.task_mgr.remove("fire_bullet_task")
         self.base.task_mgr.remove("draw_aliens_mipmap_task")
+        self.base.task_mgr.remove("update_timer_task")
         self.base.task_mgr.removeTasksMatching("bullet*")
         self.base.task_mgr.removeTasksMatching("alien*")
         self.crosshair.destroy()
@@ -562,6 +567,10 @@ class LevelBase:
 class Level1(LevelBase):
     def __init__(self, fsm, base):
         super().__init__(fsm, base)
+        self.rover_map_im = OnscreenImage("assets/textures/rover.png", scale=(0.02, 1, 0.02))
+        self.rover_map_im.setTransparency(TransparencyAttrib.MAlpha)
+        self.rover_map_im.hide()
+
         self.rover = base.loader.load_model("assets/models/rover.bam")
         self.rover.reparent_to(base.render)
         self.rover.set_pos(
@@ -572,9 +581,7 @@ class Level1(LevelBase):
 
         self.rover_message = None
 
-        alien_centre = Vec3(20, 50, 0)
-        alien_radius = 4
-        self.num_aliens = 5
+        self.num_aliens = 10
         self.aliens = []
         self.imgs = []
         for i in range(self.num_aliens):
@@ -609,7 +616,7 @@ class Level1(LevelBase):
             base.task_mgr.doMethodLater(
                 0.5, alien.update_task, f"alien{id(alien)}_update"
             )
-            base.task_mgr.add(self.draw_aliens_mipmap_task, "draw_aliens_mipmap_task")
+        base.task_mgr.add(self.draw_aliens_mipmap_task, "draw_aliens_mipmap_task")
         self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
         base.accept("vehicle_enter", self.rover_enter)
         base.accept("vehicle_exit", self.rover_exit)
@@ -627,9 +634,17 @@ class Level1(LevelBase):
                     self.imgs[i].show()
                     p = (vn * self.minimap_rad) * (dist / 50)
                     self.imgs[i].set_pos(self.minimap_pos + Vec3(p.x, 0, p.y))
-                    # print(self.minimap_pos + Vec3(p.x, 0, p.y))
                 else:
                     self.imgs[i].hide()
+        vec = Vec2(self.rover.getX(), self.rover.getY()) - Vec2(ppos.x, ppos.y)
+        dist = vec.length()
+        if dist <= 50:
+            vn = vec.normalized()
+            self.rover_map_im.show()
+            p = (vn * self.minimap_rad) * (dist / 50)
+            self.rover_map_im.set_pos(self.minimap_pos + Vec3(p.x, 0, p.y))
+        else:
+            self.rover_map_im.hide()
         return task.cont
 
     def rover_enter(self, _):
@@ -639,7 +654,7 @@ class Level1(LevelBase):
             self.rover_message = OnscreenText("Kill all aliens to use rover.")
         else:
             self.rover_message = OnscreenText("Press E to use rover.")
-            self.base.acceptOnce("e", lambda: self.fsm.request("Level2"))
+            self.base.acceptOnce("e", lambda: self.fsm.request("WinScreen", self.time_elapsed))
         self.rover_message.set_pos(0, 0, -0.3)
 
     def rover_exit(self, _):
@@ -651,6 +666,11 @@ class Level1(LevelBase):
         super().destroy()
         if self.rover_message:
             self.rover_message.destroy()
+        self.pmm_image.destroy()
+        self.minimap.destroy()
+        self.rover_map_im.destroy()
+        for im in self.imgs:
+            im.destroy()
 
 
 class Level2(LevelBase):
