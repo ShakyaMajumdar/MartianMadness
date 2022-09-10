@@ -44,8 +44,9 @@ class Player:
         self.camera = self.node.attachNewNode(self.cam)
         self.camera.set_pos(0, 0.35, 1.75)
 
-        self.fall_speed = -1
+        self.jump_velocity = Vec3(-1, -1, -1)
         self.rot_h = self.rot_v = 0
+        self.grounded = True
 
         self.actor = Actor("assets/models/player.bam")
         self.actor.reparent_to(self.node)
@@ -61,14 +62,14 @@ class Player:
         self.pusher.addCollider(push_col_node, self.node)
         cTrav.addCollider(push_col_node, self.pusher)
 
-        lift_col_node = self.node.attachNewNode(CollisionNode("lift_col_node"))
-        lift_col_node.node().addSolid(CollisionRay(0, 0, 1, 0, 0, -1))
-        lift_col_node.node().setFromCollideMask(ground_mask)
-        lift_col_node.node().setIntoCollideMask(0)
-        self.lifter = CollisionHandlerGravity()
-        self.lifter.set_gravity(0.5)
-        self.lifter.addCollider(lift_col_node, self.node)
-        cTrav.addCollider(lift_col_node, self.lifter)
+        # lift_col_node = self.node.attachNewNode(CollisionNode("lift_col_node"))
+        # lift_col_node.node().addSolid(CollisionRay(0, 0, 1, 0, 0, -1))
+        # lift_col_node.node().setFromCollideMask(ground_mask)
+        # lift_col_node.node().setIntoCollideMask(0)
+        # self.lifter = CollisionHandlerGravity()
+        # self.lifter.set_gravity(0.5)
+        # self.lifter.addCollider(lift_col_node, self.node)
+        # cTrav.addCollider(lift_col_node, self.lifter)
 
         gun_ray_node = CollisionNode("gun_ray_node")
         gun_ray_node_path = self.camera.attachNewNode(gun_ray_node)
@@ -80,14 +81,16 @@ class Player:
         cTrav.addCollider(gun_ray_node_path, self.gun_queue)
 
         vehicle_pointer_ray_node = CollisionNode("vehicle_pointer_ray_node")
-        vehicle_pointer_ray_node_path = self.camera.attachNewNode(vehicle_pointer_ray_node)
+        vehicle_pointer_ray_node_path = self.camera.attachNewNode(
+            vehicle_pointer_ray_node
+        )
         rover_pointer_ray = CollisionRay(0, 1, 1, 0, 1, 0)
         vehicle_pointer_ray_node.addSolid(rover_pointer_ray)
         vehicle_pointer_ray_node.setFromCollideMask(rover_mask | spaceship_mask)
         vehicle_pointer_ray_node.setIntoCollideMask(0)
         handler = CollisionHandlerEvent()
-        handler.addInPattern('vehicle_enter')
-        handler.addOutPattern('vehicle_exit')
+        handler.addInPattern("vehicle_enter")
+        handler.addOutPattern("vehicle_exit")
         cTrav.addCollider(vehicle_pointer_ray_node_path, handler)
 
         self.node.set_scale(self.node, 0.1)
@@ -101,13 +104,23 @@ class Player:
 
     def take_damage(self, damage):
         self.hp -= damage
-        self.hp_bar.setHealth(self.hp/100)
+        self.hp_bar.setHealth(self.hp / 100)
         if self.hp <= 0:
             self.fsm.request("DeadScreen")
 
 
 class Alien:
-    def __init__(self, node, initial_pos, player, loader, render, task_mgr, cTrav, enemy_bullet_hit_queue):
+    def __init__(
+        self,
+        node,
+        initial_pos,
+        player,
+        loader,
+        render,
+        task_mgr,
+        cTrav,
+        enemy_bullet_hit_queue,
+    ):
         self.node = node
         self.player = player
         self.loader = loader
@@ -134,7 +147,7 @@ class Alien:
         if self.hp <= 0:
             return False
         self.hp -= damage
-        self.hp_bar.setHealth(self.hp/100)
+        self.hp_bar.setHealth(self.hp / 100)
         if self.hp <= 0:
             return True
         return False
@@ -171,6 +184,7 @@ class Alien:
                 return task.done
             bullet.setPythonTag("dist", d + 0.5)
             return task.cont
+
         self.task_mgr.add(cb, f"bullet{id(bullet)}_update")
         return task.again
 
@@ -178,8 +192,12 @@ class Alien:
 class WinScreen:
     def __init__(self, fsm):
         self.text = OnscreenText("YOU WON!", fg=(1, 1, 1, 1), pos=(0, 0.4))
-        self.menu_button = make_button("BACK TO MENU", lambda: fsm.request("MainMenu"), (0, 0, -0.6))
-        self.again_button = make_button("PLAY AGAIN", lambda: fsm.request("Level1"), (0, 0, -0.8))
+        self.menu_button = make_button(
+            "BACK TO MENU", lambda: fsm.request("MainMenu"), (0, 0, -0.6)
+        )
+        self.again_button = make_button(
+            "PLAY AGAIN", lambda: fsm.request("Level1"), (0, 0, -0.8)
+        )
 
     def destroy(self):
         self.text.destroy()
@@ -238,7 +256,9 @@ class AppStateFSM(FSM):
 class MainMenu:
     def __init__(self, fsm):
         self.im = OnscreenImage("assets/logo.png", pos=(0, 0, 0.6), scale=(0.8, 1, 0.4))
-        self.title = OnscreenImage("assets/title.png", pos=(0, 0, 0.1), scale=(0.8, 1, 0.12))
+        self.title = OnscreenImage(
+            "assets/title.png", pos=(0, 0, 0.1), scale=(0.8, 1, 0.12)
+        )
         self.title.setTransparency(TransparencyAttrib.MAlpha)
         self.buttons = [
             make_button("NEW GAME", lambda: fsm.request("Level1"), (0, 0, -0.2)),
@@ -256,8 +276,15 @@ class MainMenu:
 
 class HowToPlay:
     def __init__(self, fsm):
-        self.text = OnscreenText(Path("assets/how_to_play.txt").read_text(), fg=(1, 1, 1, 1), pos=(0, 0.7), wordwrap=35)
-        self.back_button = make_button("BACK", lambda: fsm.request("MainMenu"), (0, 0, -0.75))
+        self.text = OnscreenText(
+            Path("assets/how_to_play.txt").read_text(),
+            fg=(1, 1, 1, 1),
+            pos=(0, 0.7),
+            wordwrap=35,
+        )
+        self.back_button = make_button(
+            "BACK", lambda: fsm.request("MainMenu"), (0, 0, -0.75)
+        )
 
     def destroy(self):
         self.text.destroy()
@@ -266,8 +293,15 @@ class HowToPlay:
 
 class Credits:
     def __init__(self, fsm):
-        self.text = OnscreenText(Path("assets/credits.txt").read_text(), fg=(1, 1, 1, 1), pos=(0, 0.7), wordwrap=35)
-        self.back_button = make_button("BACK", lambda: fsm.request("MainMenu"), (0, 0, -0.75))
+        self.text = OnscreenText(
+            Path("assets/credits.txt").read_text(),
+            fg=(1, 1, 1, 1),
+            pos=(0, 0.7),
+            wordwrap=35,
+        )
+        self.back_button = make_button(
+            "BACK", lambda: fsm.request("MainMenu"), (0, 0, -0.75)
+        )
 
     def destroy(self):
         self.text.destroy()
@@ -277,8 +311,12 @@ class Credits:
 class DeadScreen:
     def __init__(self, fsm):
         self.text = OnscreenText("YOU DIED!", fg=(1, 1, 1, 1), pos=(0, 0.4))
-        self.menu_button = make_button("BACK TO MENU", lambda: fsm.request("MainMenu"), (0, 0, -0.6))
-        self.again_button = make_button("PLAY AGAIN", lambda: fsm.request("Level1"), (0, 0, -0.8))
+        self.menu_button = make_button(
+            "BACK TO MENU", lambda: fsm.request("MainMenu"), (0, 0, -0.6)
+        )
+        self.again_button = make_button(
+            "PLAY AGAIN", lambda: fsm.request("Level1"), (0, 0, -0.8)
+        )
 
     def destroy(self):
         self.text.destroy()
@@ -296,9 +334,9 @@ class LevelBase:
 
         self.mouse_sensitivity = 20
 
-        self.environment = base.loader.load_model("assets/models/terrain.bam")
-        self.environment.reparent_to(base.render)
-        self.environment.setCollideMask(ground_mask)
+        # self.environment = base.loader.load_model("assets/models/terrain.bam")
+        # self.environment.reparent_to(base.render)
+        # self.environment.setCollideMask(ground_mask)
 
         self.boundary_mountains = base.loader.load_model("assets/models/mountain.bam")
         self.boundary_mountains.reparent_to(base.render)
@@ -333,6 +371,15 @@ class LevelBase:
         self.gun.node.reparent_to(self.player.camera)
         self.enemy_bullet_hit_queue = CollisionHandlerQueue()
 
+        self.terrain = GeoMipTerrain("terrain")
+        # self.terrain.setBruteforce(True)
+        self.terrain.setHeightfield("assets/textures/Heightmap.png")
+        self.terrain.set_focal_point(self.player.camera)
+        self.terrain.generate()
+        self.terrain_mesh = self.terrain.get_root()
+        self.terrain_mesh.setSz(20)
+        self.terrain_mesh.reparentTo(base.render)
+
         self.num_aliens = None
 
         self.aliens_killed = 0
@@ -357,6 +404,7 @@ class LevelBase:
         base.task_mgr.add(self.mouse_look_task, "mouse_look_task")
         base.task_mgr.add(self.player_movement_task, "player_movement_task")
         base.task_mgr.add(self.check_enemy_bullets_task, "check_enemy_bullets_task")
+        base.task_mgr.add(self.update_terrain_task, "update_terrain_task")
         base.task_mgr.doMethodLater(0.25, self.fire_bullet_task, "fire_bullet_task")
 
         self.props = WindowProperties()
@@ -371,6 +419,10 @@ class LevelBase:
 
     def set_center(self):
         self.center = (self.base.win.getXSize() // 2, self.base.win.getYSize() // 2)
+
+    def update_terrain_task(self, _task):
+        self.terrain.update()
+        return Task.cont
 
     def mouse_look_task(self, _task):
         if self.base.mouseWatcherNode.hasMouse():
@@ -387,21 +439,38 @@ class LevelBase:
     def player_movement_task(self, _task):
         velocity = Vec3(0, 0, 0)
         dt = globalClock.getDt()
-        speed = Vec3(20, 15, 10)  # front, back, sideways
-        if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("w")):
-            velocity.y = speed.x * dt
-        if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("s")):
-            velocity.y = -speed.y * dt
-        if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("d")):
-            velocity.x = speed.z * dt
-        if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("a")):
-            velocity.x = -speed.z * dt
-        if (
-            self.base.mouseWatcherNode.is_button_down(KeyboardButton.space())
-            and self.player.lifter.isOnGround()
-        ):
-            self.player.lifter.set_velocity(math.sqrt(2 * 0.3))
+        speed = Vec3(40, 30, 20)  # front, back, sideways
+        terrain_height = (
+            self.terrain.get_elevation(self.player.node.getX(), self.player.node.getY())
+            * self.terrain_mesh.get_sz()
+            + 2
+        )
+        if self.player.grounded:
+            if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("w")):
+                velocity.y = speed.x * dt
+            if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("s")):
+                velocity.y = -speed.y * dt
+            if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("d")):
+                velocity.x = speed.z * dt
+            if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("a")):
+                velocity.x = -speed.z * dt
+            if self.base.mouseWatcherNode.is_button_down(KeyboardButton.space()):
+                self.player.jump_velocity = Vec3(
+                    velocity.x, velocity.y, math.sqrt(20 * -2 * -9.8)
+                )
+                self.player.grounded = False
+        else:
+            velocity.x = self.player.jump_velocity.x
+            velocity.y = self.player.jump_velocity.y
+
+        self.player.jump_velocity.z += -9.8 * dt
+        velocity.z = self.player.jump_velocity.z * dt
         self.player.node.set_pos(self.player.node, *velocity)
+
+        if self.player.node.getZ() <= terrain_height:
+            self.player.node.setZ(terrain_height)
+            self.player.grounded = True
+            self.player.jump_velocity = Vec3(-1, -1, -1)
         return Task.cont
 
     def fire_bullet_task(self, task):
@@ -418,10 +487,12 @@ class LevelBase:
 
             if alien.take_damage(5):
                 self.aliens_killed += 1
-                self.aliens_killed_bar.setHealth(self.aliens_killed/self.num_aliens)
+                self.aliens_killed_bar.setHealth(self.aliens_killed / self.num_aliens)
                 self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
                 alien.actor.play("CharacterArmature|Death")
-                self.base.task_mgr.doMethodLater(2, cb, "dead_alien_remove", extraArgs=[])
+                self.base.task_mgr.doMethodLater(
+                    2, cb, "dead_alien_remove", extraArgs=[]
+                )
         return task.again
 
     def check_enemy_bullets_task(self, task):
@@ -466,19 +537,25 @@ class Level1(LevelBase):
         for i in range(self.num_aliens):
             alien = Alien(
                 NodePath(f"alien{i}_node"),
-                alien_centre + Vec3(alien_radius * math.cos(2 * math.pi / self.num_aliens * i),
-                                    alien_radius * math.sin(2 * math.pi / self.num_aliens * i), 0),
+                alien_centre
+                + Vec3(
+                    alien_radius * math.cos(2 * math.pi / self.num_aliens * i),
+                    alien_radius * math.sin(2 * math.pi / self.num_aliens * i),
+                    0,
+                ),
                 self.player,
                 base.loader,
                 base.render,
                 base.task_mgr,
                 base.cTrav,
-                self.enemy_bullet_hit_queue
+                self.enemy_bullet_hit_queue,
             )
             alien.node.reparent_to(base.render)
             alien.node.setCollideMask(enemy_mask)
             alien.node.setPythonTag("alien", alien)
-            base.task_mgr.doMethodLater(2, alien.update_task, f"alien{id(alien)}_update")
+            base.task_mgr.doMethodLater(
+                2, alien.update_task, f"alien{id(alien)}_update"
+            )
         self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
         base.accept("vehicle_enter", self.rover_enter)
         base.accept("vehicle_exit", self.rover_exit)
@@ -524,19 +601,25 @@ class Level2(LevelBase):
         for i in range(self.num_aliens):
             alien = Alien(
                 NodePath(f"alien{i}_node"),
-                alien_centre + Vec3(alien_radius * math.cos(2 * math.pi / self.num_aliens * i),
-                                    alien_radius * math.sin(2 * math.pi / self.num_aliens * i), 0),
+                alien_centre
+                + Vec3(
+                    alien_radius * math.cos(2 * math.pi / self.num_aliens * i),
+                    alien_radius * math.sin(2 * math.pi / self.num_aliens * i),
+                    0,
+                ),
                 self.player,
                 base.loader,
                 base.render,
                 base.task_mgr,
                 base.cTrav,
-                self.enemy_bullet_hit_queue
+                self.enemy_bullet_hit_queue,
             )
             alien.node.reparent_to(base.render)
             alien.node.setCollideMask(enemy_mask)
             alien.node.setPythonTag("alien", alien)
-            base.task_mgr.doMethodLater(2, alien.update_task, f"alien{id(alien)}_update")
+            base.task_mgr.doMethodLater(
+                2, alien.update_task, f"alien{id(alien)}_update"
+            )
         self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
 
     def spaceship_enter(self, _):
@@ -584,14 +667,14 @@ class Gun:
 
 class HealthBar(NodePath):
     def __init__(self):
-        NodePath.__init__(self, 'healthbar')
+        NodePath.__init__(self, "healthbar")
 
-        cmfg = CardMaker('fg')
+        cmfg = CardMaker("fg")
         cmfg.setFrame(0, 1, -0.1, 0.1)
         self.fg = self.attachNewNode(cmfg.generate())
         self.fg.setPos(-0.5, 0, 0)
 
-        cmbg = CardMaker('bg')
+        cmbg = CardMaker("bg")
         cmbg.setFrame(-1, 0, -0.1, 0.1)
         self.bg = self.attachNewNode(cmbg.generate())
         self.bg.setPos(0.5, 0, 0)
