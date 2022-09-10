@@ -20,6 +20,7 @@ ground_mask = BitMask32(0b10)
 wall_mask = BitMask32(0b100)
 enemy_mask = BitMask32(0b1000)
 player_mask = BitMask32(0b100000)
+rover_mask = BitMask32(0b1000000)
 atmosphere_col = 0.7529, 0.6196, 0.3921
 
 
@@ -76,6 +77,18 @@ class Player:
         gun_ray_node.setIntoCollideMask(0)
         self.gun_queue = CollisionHandlerQueue()
         cTrav.addCollider(gun_ray_node_path, self.gun_queue)
+
+        rover_pointer_ray_node = CollisionNode("rover_pointer_ray_node")
+        rover_pointer_ray_node_path = self.camera.attachNewNode(rover_pointer_ray_node)
+        rover_pointer_ray = CollisionRay(0, 1, 1, 0, 1, 0)
+        rover_pointer_ray_node.addSolid(rover_pointer_ray)
+        rover_pointer_ray_node.setFromCollideMask(rover_mask)
+        rover_pointer_ray_node.setIntoCollideMask(0)
+        handler = CollisionHandlerEvent()
+        handler.addInPattern('rover_enter')
+        handler.addOutPattern('rover_exit')
+        cTrav.addCollider(rover_pointer_ray_node_path, handler)
+
         self.node.set_scale(self.node, 0.1)
         self.node.set_pos(-8, -8, 1)
 
@@ -289,7 +302,7 @@ class Game:
         self.rover.reparent_to(base.render)
         self.rover.set_pos(2, 3, 0.5)
         self.rover.set_scale(0.3)
-        self.rover.setCollideMask(wall_mask)
+        self.rover.setCollideMask(wall_mask | rover_mask)
 
         player_node = NodePath("player_node")
         player_node.reparent_to(base.render)
@@ -351,8 +364,26 @@ class Game:
 
         base.accept("aspectRatioChanged", self.set_center)
         base.accept("escape", lambda: self.fsm.request("MainMenu"))
+        base.accept("rover_enter", self.rover_enter)
+        base.accept("rover_exit", self.rover_exit)
+
         dr = base.camNode.getDisplayRegion(0)
         dr.setCamera(self.player.camera)
+
+    def rover_enter(self, _):
+        self.rover_message = None
+        if (self.player.node.get_pos() - self.rover.get_pos()).length() > 5:
+            return
+        if self.aliens_killed < self.num_aliens:
+            self.rover_message = OnscreenText("Kill all aliens to use rover.")
+        else:
+            self.rover_message = OnscreenText("Press E to use rover.")
+            self.base.acceptOnce("e", lambda: self.fsm.request("MainMenu"))
+        self.rover_message.set_pos(0, 0, -0.3)
+
+    def rover_exit(self, _):
+        if self.rover_message:
+            self.rover_message.destroy()
 
     def set_center(self):
         self.center = (self.base.win.getXSize() // 2, self.base.win.getYSize() // 2)
