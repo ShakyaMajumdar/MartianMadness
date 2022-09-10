@@ -21,6 +21,7 @@ wall_mask = BitMask32(0b100)
 enemy_mask = BitMask32(0b1000)
 player_mask = BitMask32(0b100000)
 rover_mask = BitMask32(0b1000000)
+spaceship_mask = BitMask32(0b10000000)
 atmosphere_col = 0.7529, 0.6196, 0.3921
 
 
@@ -47,7 +48,6 @@ class Player:
 
         self.actor = Actor("assets/models/player.bam")
         self.actor.reparent_to(self.node)
-        self.node.set_pos(0, 0, 1)
         # self.actor.loop("Idle")
 
         self.node.setCollideMask(player_mask)
@@ -73,21 +73,21 @@ class Player:
         gun_ray_node_path = self.camera.attachNewNode(gun_ray_node)
         gun_ray = CollisionRay(0, 1, 1, 0, 1, 0)
         gun_ray_node.addSolid(gun_ray)
-        gun_ray_node.setFromCollideMask(enemy_mask)
+        gun_ray_node.setFromCollideMask(enemy_mask | ground_mask | wall_mask)
         gun_ray_node.setIntoCollideMask(0)
         self.gun_queue = CollisionHandlerQueue()
         cTrav.addCollider(gun_ray_node_path, self.gun_queue)
 
-        rover_pointer_ray_node = CollisionNode("rover_pointer_ray_node")
-        rover_pointer_ray_node_path = self.camera.attachNewNode(rover_pointer_ray_node)
+        vehicle_pointer_ray_node = CollisionNode("vehicle_pointer_ray_node")
+        vehicle_pointer_ray_node_path = self.camera.attachNewNode(vehicle_pointer_ray_node)
         rover_pointer_ray = CollisionRay(0, 1, 1, 0, 1, 0)
-        rover_pointer_ray_node.addSolid(rover_pointer_ray)
-        rover_pointer_ray_node.setFromCollideMask(rover_mask)
-        rover_pointer_ray_node.setIntoCollideMask(0)
+        vehicle_pointer_ray_node.addSolid(rover_pointer_ray)
+        vehicle_pointer_ray_node.setFromCollideMask(rover_mask | spaceship_mask)
+        vehicle_pointer_ray_node.setIntoCollideMask(0)
         handler = CollisionHandlerEvent()
-        handler.addInPattern('rover_enter')
-        handler.addOutPattern('rover_exit')
-        cTrav.addCollider(rover_pointer_ray_node_path, handler)
+        handler.addInPattern('vehicle_enter')
+        handler.addOutPattern('vehicle_exit')
+        cTrav.addCollider(vehicle_pointer_ray_node_path, handler)
 
         self.node.set_scale(self.node, 0.1)
         self.node.set_pos(-8, -8, 1)
@@ -139,6 +139,8 @@ class Alien:
         return False
 
     def update_task(self, task):
+        if (self.node.get_pos() - self.player.node.get_pos()).length() > 10:
+            return task.cont
         self.node.lookAt(self.player.node)
         bullet = NodePath("bullet")
         bullet.reparent_to(self.render)
@@ -170,6 +172,18 @@ class Alien:
             return task.cont
         self.task_mgr.add(cb, f"bullet{id(bullet)}_update")
         return task.again
+
+
+class WinScreen:
+    def __init__(self, fsm):
+        self.text = OnscreenText("YOU WON!", fg=(1, 1, 1, 1), pos=(0, 0.4))
+        self.menu_button = make_button("BACK TO MENU", lambda: fsm.request("MainMenu"), (0, 0, -0.6))
+        self.again_button = make_button("PLAY AGAIN", lambda: fsm.request("Level1"), (0, 0, -0.8))
+
+    def destroy(self):
+        self.text.destroy()
+        self.menu_button.destroy()
+        self.again_button.destroy()
 
 
 class AppStateFSM(FSM):
@@ -213,6 +227,12 @@ class AppStateFSM(FSM):
     def exitDeadScreen(self):
         self.dead_screen.destroy()
 
+    def enterWinScreen(self):
+        self.win_screen = WinScreen(self)
+
+    def exitWinScreen(self):
+        self.win_screen.destroy()
+
 
 class MainMenu:
     def __init__(self, fsm):
@@ -249,6 +269,7 @@ class Credits:
         # TODO:
         # Mini Fantasy Tank by Maxwell Planck [CC-BY], via Poly Pizza
         # Robot Enemy Legs by Quaternius
+        # Spaceship by Quaternius
         self.back_button = make_button("BACK", lambda: fsm.request("MainMenu"), (0, 0, -0.75))
 
     def destroy(self):
@@ -462,8 +483,8 @@ class Level1(LevelBase):
             alien.node.setPythonTag("alien", alien)
             base.task_mgr.doMethodLater(2, alien.update_task, f"alien{id(alien)}_update")
         self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
-        base.accept("rover_enter", self.rover_enter)
-        base.accept("rover_exit", self.rover_exit)
+        base.accept("vehicle_enter", self.rover_enter)
+        base.accept("vehicle_exit", self.rover_exit)
 
     def rover_enter(self, _):
         if (self.player.node.get_pos() - self.rover.get_pos()).length() > 5:
@@ -487,7 +508,59 @@ class Level1(LevelBase):
 
 
 class Level2(LevelBase):
-    ...
+    def __init__(self, fsm, base):
+        super().__init__(fsm, base)
+        self.player.node.set_pos(8, -8, 1)
+        self.spaceship = base.loader.load_model("assets/models/spaceship.bam")
+        self.spaceship.reparent_to(base.render)
+        self.spaceship.set_pos(-7.5, 6, 0)
+        self.spaceship.set_scale(0.3)
+        self.spaceship.set_h(45)
+        self.spaceship.setCollideMask(wall_mask | spaceship_mask | ground_mask)
+        self.spaceship_message = None
+        base.accept("vehicle_enter", self.spaceship_enter)
+        base.accept("vehicle_exit", self.spaceship_exit)
+
+        alien_centre = Vec3(2, 3, 1)
+        alien_radius = 4
+        self.num_aliens = 15
+        for i in range(self.num_aliens):
+            alien = Alien(
+                NodePath(f"alien{i}_node"),
+                alien_centre + Vec3(alien_radius * math.cos(2 * math.pi / self.num_aliens * i),
+                                    alien_radius * math.sin(2 * math.pi / self.num_aliens * i), 0),
+                self.player,
+                base.loader,
+                base.render,
+                base.task_mgr,
+                base.cTrav,
+                self.enemy_bullet_hit_queue
+            )
+            alien.node.reparent_to(base.render)
+            alien.node.setCollideMask(enemy_mask)
+            alien.node.setPythonTag("alien", alien)
+            base.task_mgr.doMethodLater(2, alien.update_task, f"alien{id(alien)}_update")
+        self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
+
+    def spaceship_enter(self, _):
+        if (self.player.node.get_pos() - self.spaceship.get_pos()).length() > 5:
+            return
+        if self.aliens_killed < self.num_aliens:
+            self.spaceship_message = OnscreenText("Kill all aliens to use spaceship.")
+        else:
+            self.spaceship_message = OnscreenText("Press E to use spaceship.")
+            self.base.acceptOnce("e", lambda: self.fsm.request("WinScreen"))
+        self.spaceship_message.set_pos(0, 0, -0.3)
+
+    def spaceship_exit(self, _):
+        self.base.ignore("e")
+        if self.spaceship_message:
+            self.spaceship_message.destroy()
+
+    def destroy(self):
+        super().destroy()
+        if self.spaceship_message:
+            self.spaceship_message.destroy()
 
 
 def make_button(text, callback, pos):
