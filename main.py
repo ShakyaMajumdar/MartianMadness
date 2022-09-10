@@ -19,7 +19,6 @@ loadPrcFileData("", "win-size 1200 720")
 ground_mask = BitMask32(0b10)
 wall_mask = BitMask32(0b100)
 enemy_mask = BitMask32(0b1000)
-sky_mask = BitMask32(0b10000)
 player_mask = BitMask32(0b100000)
 atmosphere_col = 0.7529, 0.6196, 0.3921
 
@@ -134,7 +133,7 @@ class Alien:
         m.setScale(0.05)
         m.reparent_to(bullet)
         bullet.set_pos(self.node.get_pos())
-        bullet.lookAt(self.player.node)
+        bullet.lookAt(self.player.node.get_pos() + Vec3(0, 0, 0.1))
 
         bullet_col_node = CollisionNode("bullet_col_node")
         bullet_col_node_path = bullet.attachNewNode(bullet_col_node)
@@ -143,7 +142,7 @@ class Alien:
         bullet_col_node_path.setPythonTag("bullet", bullet)
 
         bullet_col_node.addSolid(bullet_cs)
-        bullet_col_node.setFromCollideMask(sky_mask | ground_mask | player_mask)
+        bullet_col_node.setFromCollideMask(ground_mask | player_mask)
         bullet_col_node.setIntoCollideMask(0)
         self.cTrav.addCollider(bullet_col_node_path, self.enemy_bullet_hit_queue)
 
@@ -334,7 +333,7 @@ class Game:
         base.win.requestProperties(self.props)
 
         base.accept("aspectRatioChanged", self.set_center)
-        base.accept("escape", lambda: self.fsm.request("DeadScreen"))
+        base.accept("escape", lambda: self.fsm.request("MainMenu"))
         dr = base.camNode.getDisplayRegion(0)
         dr.setCamera(self.player.camera)
 
