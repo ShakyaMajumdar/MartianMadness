@@ -10,6 +10,7 @@ from direct.gui.OnscreenImage import OnscreenImage
 from direct.gui.OnscreenText import OnscreenText
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.ShowBaseGlobal import globalClock
+from direct.particles.ParticleEffect import ParticleEffect
 from direct.task import Task
 
 
@@ -42,7 +43,7 @@ class Player:
         self.fsm = fsm
         self.cam = Camera("player_cam")
         self.camera = self.node.attachNewNode(self.cam)
-        self.camera.set_pos(0, 0.35, 1.75)
+        self.camera.set_pos(0, 0.0, 1.75)
 
         self.jump_velocity = Vec3(-1, -1, -1)
         self.rot_h = self.rot_v = 0
@@ -333,15 +334,16 @@ class LevelBase:
         self.set_center()
 
         self.mouse_sensitivity = 20
+        base.enableParticles()
 
         # self.environment = base.loader.load_model("assets/models/terrain.bam")
         # self.environment.reparent_to(base.render)
         # self.environment.setCollideMask(ground_mask)
 
-        self.boundary_mountains = base.loader.load_model("assets/models/mountain.bam")
-        self.boundary_mountains.reparent_to(base.render)
-        self.boundary_mountains.set_pos(0, 0, -0.5)
-        self.boundary_mountains.setCollideMask(wall_mask)
+        # self.boundary_mountains = base.loader.load_model("assets/models/mountain.bam")
+        # self.boundary_mountains.reparent_to(base.render)
+        # self.boundary_mountains.set_pos(0, 0, -0.5)
+        # self.boundary_mountains.setCollideMask(wall_mask)
 
         expfog = Fog("scene-wide-fog")
         expfog.setColor(*atmosphere_col)
@@ -363,6 +365,7 @@ class LevelBase:
         player_node = NodePath("player_node")
         player_node.reparent_to(base.render)
         self.player = Player(player_node, base.cTrav, base, self.fsm)
+        self.player.node.set_pos(0, 50, 0)
         gun_node = NodePath("gun_node")
         self.gun = Gun(gun_node, self.base.loader.loadModel("assets/models/gun.gltf"))
         self.gun.node.set_h(90)
@@ -525,24 +528,28 @@ class Level1(LevelBase):
         super().__init__(fsm, base)
         self.rover = base.loader.load_model("assets/models/rover.bam")
         self.rover.reparent_to(base.render)
-        self.rover.set_pos(2, 3, 0.5)
+        self.rover.set_pos(
+            20, 50, self.terrain.get_elevation(20, 50) * self.terrain_mesh.get_sz()
+        )
         self.rover.set_scale(0.3)
         self.rover.setCollideMask(wall_mask | rover_mask)
 
         self.rover_message = None
 
-        alien_centre = Vec3(2, 3, 1)
+        alien_centre = Vec3(20, 50, 0)
         alien_radius = 4
         self.num_aliens = 5
         for i in range(self.num_aliens):
+            x = alien_centre.x + alien_radius * math.cos(
+                2 * math.pi / self.num_aliens * i
+            )
+            y = alien_centre.y + alien_radius * math.sin(
+                2 * math.pi / self.num_aliens * i
+            )
+            z = self.terrain.get_elevation(x, y) * self.terrain_mesh.get_sz()
             alien = Alien(
                 NodePath(f"alien{i}_node"),
-                alien_centre
-                + Vec3(
-                    alien_radius * math.cos(2 * math.pi / self.num_aliens * i),
-                    alien_radius * math.sin(2 * math.pi / self.num_aliens * i),
-                    0,
-                ),
+                Vec3(x, y, z),
                 self.player,
                 base.loader,
                 base.render,
@@ -587,7 +594,9 @@ class Level2(LevelBase):
         self.player.node.set_pos(8, -8, 1)
         self.spaceship = base.loader.load_model("assets/models/spaceship.bam")
         self.spaceship.reparent_to(base.render)
-        self.spaceship.set_pos(-7.5, 6, 0)
+        self.spaceship.set_pos(
+            40, 60, self.terrain.get_elevation(40, 60) * self.terrain_mesh.get_sz()
+        )
         self.spaceship.set_scale(0.3)
         self.spaceship.set_h(45)
         self.spaceship.setCollideMask(wall_mask | spaceship_mask | ground_mask)
@@ -595,18 +604,20 @@ class Level2(LevelBase):
         base.accept("vehicle_enter", self.spaceship_enter)
         base.accept("vehicle_exit", self.spaceship_exit)
 
-        alien_centre = Vec3(2, 3, 1)
+        alien_centre = Vec3(40, 60, 0)
         alien_radius = 4
         self.num_aliens = 15
         for i in range(self.num_aliens):
+            x = alien_centre.x + alien_radius * math.cos(
+                2 * math.pi / self.num_aliens * i
+            )
+            y = alien_centre.y + alien_radius * math.sin(
+                2 * math.pi / self.num_aliens * i
+            )
+            z = self.terrain.get_elevation(x, y) * self.terrain_mesh.get_sz()
             alien = Alien(
                 NodePath(f"alien{i}_node"),
-                alien_centre
-                + Vec3(
-                    alien_radius * math.cos(2 * math.pi / self.num_aliens * i),
-                    alien_radius * math.sin(2 * math.pi / self.num_aliens * i),
-                    0,
-                ),
+                Vec3(x, y, z),
                 self.player,
                 base.loader,
                 base.render,
