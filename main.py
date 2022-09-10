@@ -1,5 +1,6 @@
 import math
 import sys
+import random
 from pathlib import Path
 
 from direct.actor.Actor import Actor
@@ -381,6 +382,9 @@ class LevelBase:
         self.terrain = GeoMipTerrain("terrain")
         # self.terrain.setBruteforce(True)
         self.terrain.setHeightfield("assets/textures/Heightmap.png")
+        img = PNMImage(257, 257, 3)
+        img.fillVal(163, 69, 41)
+        self.terrain.set_color_map(img)
         self.terrain.set_focal_point(self.player.camera)
         self.terrain.generate()
         self.terrain_mesh = self.terrain.get_root()
@@ -450,10 +454,11 @@ class LevelBase:
         velocity = Vec3(0, 0, 0)
         dt = globalClock.getDt()
         speed = Vec3(40, 30, 20)  # front, back, sideways
+        x, y, _z = self.player.node.get_pos()
+        self.player.node.setX(min(max(1, x), 255))
+        self.player.node.setY(min(max(1, y), 255))
         terrain_height = (
-            self.terrain.get_elevation(self.player.node.getX(), self.player.node.getY())
-            * self.terrain_mesh.get_sz()
-            + 2
+            self.terrain.get_elevation(x, y) * self.terrain_mesh.get_sz() + 2
         )
         if self.player.grounded:
             if self.base.mouseWatcherNode.is_button_down(KeyboardButton.ascii_key("w")):
@@ -549,12 +554,8 @@ class Level1(LevelBase):
         alien_radius = 4
         self.num_aliens = 5
         for i in range(self.num_aliens):
-            x = alien_centre.x + alien_radius * math.cos(
-                2 * math.pi / self.num_aliens * i
-            )
-            y = alien_centre.y + alien_radius * math.sin(
-                2 * math.pi / self.num_aliens * i
-            )
+            x = random.randint(5, 240)
+            y = random.randint(5, 240)
             z = self.terrain.get_elevation(x, y) * self.terrain_mesh.get_sz()
             alien = Alien(
                 NodePath(f"alien{i}_node"),
