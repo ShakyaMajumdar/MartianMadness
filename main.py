@@ -143,17 +143,17 @@ class Alien:
         self.node.set_pos(*initial_pos)
         self.actor.loop("CharacterArmature|Shoot")
         self.hp = 100
-        self.hp_bar = HealthBar()
-        self.hp_bar.reparent_to(self.node)
-        self.hp_bar.setBillboardPointEye(-10, fixed_depth=True)
-        self.hp_bar.setScale(0.5)
-        self.hp_bar.setPos(0, 0, 0.5)
+        # self.hp_bar = HealthBar()
+        # self.hp_bar.reparent_to(self.node)
+        # self.hp_bar.setBillboardPointEye(-10, fixed_depth=True)
+        # self.hp_bar.setScale(0.5)
+        # self.hp_bar.setPos(0, 0, 0.5)
 
     def take_damage(self, damage):
         if self.hp <= 0:
             return False
         self.hp -= damage
-        self.hp_bar.setHealth(self.hp / 100)
+        # self.hp_bar.setHealth(self.hp / 100)
         if self.hp <= 0:
             return True
         return False
@@ -421,6 +421,23 @@ class LevelBase:
         base.task_mgr.add(self.update_terrain_task, "update_terrain_task")
         base.task_mgr.doMethodLater(0.25, self.fire_bullet_task, "fire_bullet_task")
 
+        self.minimap_pos = Vec3(-1.4, 0, 0.7)
+        self.minimap = OnscreenImage(
+            image="assets/textures/minimap.png",
+            scale=(0.25, 1, 0.25),
+            pos=self.minimap_pos,
+        )
+        a = self.minimap.getTightBounds()
+        self.minimap_rad = (a[1].x - a[0].x) / 2
+        self.minimap.setTransparency(TransparencyAttrib.MAlpha)
+
+        self.pmm_image = OnscreenImage(
+            image="assets/textures/playerhead.png",
+            pos=self.minimap_pos,
+            scale=(0.015, 1, 0.015),
+        )
+        self.pmm_image.setTransparency(TransparencyAttrib.MAlpha)
+
         self.props = WindowProperties()
         self.props.setCursorHidden(True)
         base.win.requestProperties(self.props)
@@ -447,6 +464,7 @@ class LevelBase:
             self.rot_v = min(90, max(-90, self.player.rot_v))
             self.player.node.set_hpr(self.player.rot_h, 0, 0)
             self.player.camera.set_p(self.rot_v)
+            self.pmm_image.set_r(-self.player.rot_h)
         self.base.win.movePointer(0, *self.center)
         return Task.cont
 
@@ -530,6 +548,7 @@ class LevelBase:
         self.base.task_mgr.remove("player_movement_task")
         self.base.task_mgr.remove("check_enemy_bullets_task")
         self.base.task_mgr.remove("fire_bullet_task")
+        self.base.task_mgr.remove("draw_aliens_mipmap_task")
         self.base.task_mgr.removeTasksMatching("bullet*")
         self.base.task_mgr.removeTasksMatching("alien*")
         self.crosshair.destroy()
@@ -553,12 +572,26 @@ class Level1(LevelBase):
         alien_centre = Vec3(20, 50, 0)
         alien_radius = 4
         self.num_aliens = 5
+        self.aliens = []
+        self.imgs = []
+        for i in range(self.num_aliens):
+            self.imgs.append(
+                OnscreenImage(
+                    image="assets/textures/enemy.png",
+                    scale=(0.02, 1, 0.02),
+                )
+            )
+            self.imgs[i].setTransparency(TransparencyAttrib.MAlpha)
+            self.imgs[i].hide()
+
         for i in range(self.num_aliens):
             x = random.randint(5, 240)
             y = random.randint(5, 240)
             z = self.terrain.get_elevation(x, y) * self.terrain_mesh.get_sz()
+            al = NodePath(f"alien{i}_node")
+            self.aliens.append(al)
             alien = Alien(
-                NodePath(f"alien{i}_node"),
+                al,
                 Vec3(x, y, z),
                 self.player,
                 base.loader,
@@ -573,9 +606,28 @@ class Level1(LevelBase):
             base.task_mgr.doMethodLater(
                 2, alien.update_task, f"alien{id(alien)}_update"
             )
+            base.task_mgr.add(self.draw_aliens_mipmap_task, "draw_aliens_mipmap_task")
         self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
         base.accept("vehicle_enter", self.rover_enter)
         base.accept("vehicle_exit", self.rover_exit)
+
+    def draw_aliens_mipmap_task(self, task):
+        ppos = self.player.node.get_pos()
+        for i, alien in enumerate(self.aliens):
+            if alien.is_empty():
+                self.imgs[i].hide()
+            else:
+                vec = Vec2(alien.getX(), alien.getY()) - Vec2(ppos.x, ppos.y)
+                dist = vec.length()
+                if dist <= 50:
+                    vn = vec.normalized()
+                    self.imgs[i].show()
+                    p = (vn * self.minimap_rad) * (dist / 50)
+                    self.imgs[i].set_pos(self.minimap_pos + Vec3(p.x, 0, p.y))
+                    # print(self.minimap_pos + Vec3(p.x, 0, p.y))
+                else:
+                    self.imgs[i].hide()
+        return task.cont
 
     def rover_enter(self, _):
         if (self.player.node.get_pos() - self.rover.get_pos()).length() > 5:
