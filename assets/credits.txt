@@ -1,0 +1,6 @@
+Made by hsp and vinam for PyWeek 34.
+
+Models:
+Mini Fantasy Tank by Maxwell Planck [CC-BY], via Poly Pizza
+Robot Enemy Legs by Quaternius
+Spaceship by Quaternius

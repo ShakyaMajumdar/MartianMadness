@@ -1,5 +1,6 @@
 import math
 import sys
+from pathlib import Path
 
 from direct.actor.Actor import Actor
 from direct.fsm.FSM import FSM
@@ -16,12 +17,12 @@ from panda3d.core import *
 
 loadPrcFileData("", "win-size 1200 720")
 
-ground_mask = BitMask32(0b10)
-wall_mask = BitMask32(0b100)
-enemy_mask = BitMask32(0b1000)
-player_mask = BitMask32(0b100000)
-rover_mask = BitMask32(0b1000000)
-spaceship_mask = BitMask32(0b10000000)
+ground_mask = BitMask32.bit(1)
+wall_mask = BitMask32.bit(2)
+enemy_mask = BitMask32.bit(3)
+player_mask = BitMask32.bit(4)
+rover_mask = BitMask32.bit(5)
+spaceship_mask = BitMask32.bit(6)
 atmosphere_col = 0.7529, 0.6196, 0.3921
 
 
@@ -139,7 +140,7 @@ class Alien:
         return False
 
     def update_task(self, task):
-        if (self.node.get_pos() - self.player.node.get_pos()).length() > 10:
+        if (self.node.get_pos() - self.player.node.get_pos()).length() > 20:
             return task.cont
         self.node.lookAt(self.player.node)
         bullet = NodePath("bullet")
@@ -255,7 +256,7 @@ class MainMenu:
 
 class HowToPlay:
     def __init__(self, fsm):
-        self.text = OnscreenText("Lorem Ipsum", fg=(1, 1, 1, 1), pos=(0, 0.7), wordwrap=35)
+        self.text = OnscreenText(Path("assets/how_to_play.txt").read_text(), fg=(1, 1, 1, 1), pos=(0, 0.7), wordwrap=35)
         self.back_button = make_button("BACK", lambda: fsm.request("MainMenu"), (0, 0, -0.75))
 
     def destroy(self):
@@ -265,11 +266,7 @@ class HowToPlay:
 
 class Credits:
     def __init__(self, fsm):
-        self.text = OnscreenText("Generic Placeholder", fg=(1, 1, 1, 1), pos=(0, 0.7), wordwrap=35)
-        # TODO:
-        # Mini Fantasy Tank by Maxwell Planck [CC-BY], via Poly Pizza
-        # Robot Enemy Legs by Quaternius
-        # Spaceship by Quaternius
+        self.text = OnscreenText(Path("assets/credits.txt").read_text(), fg=(1, 1, 1, 1), pos=(0, 0.7), wordwrap=35)
         self.back_button = make_button("BACK", lambda: fsm.request("MainMenu"), (0, 0, -0.75))
 
     def destroy(self):
