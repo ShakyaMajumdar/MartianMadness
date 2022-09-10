@@ -167,7 +167,7 @@ class Alien:
         m = self.loader.load_model("assets/models/ball.bam")
         m.setScale(0.05)
         m.reparent_to(bullet)
-        bullet.set_pos(self.node.get_pos())
+        bullet.set_pos(self.node, 0, 0, 0.5)
         bullet.lookAt(self.player.node.get_pos() + Vec3(0, 0, 0.1))
 
         bullet_col_node = CollisionNode("bullet_col_node")
@@ -262,6 +262,7 @@ class AppStateFSM(FSM):
 class MainMenu:
     def __init__(self, fsm):
         self.im = OnscreenImage("assets/logo.png", pos=(0, 0, 0.6), scale=(0.8, 1, 0.4))
+        self.im.setTransparency(TransparencyAttrib.MAlpha)
         self.title = OnscreenImage(
             "assets/title.png", pos=(0, 0, 0.1), scale=(0.8, 1, 0.12)
         )
@@ -352,7 +353,7 @@ class LevelBase:
 
         expfog = Fog("scene-wide-fog")
         expfog.setColor(*atmosphere_col)
-        expfog.setExpDensity(0.004)
+        expfog.setExpDensity(0.002)
         base.render.setFog(expfog)
 
         ambientLight = AmbientLight("ambientLight")
@@ -390,6 +391,7 @@ class LevelBase:
         self.terrain_mesh = self.terrain.get_root()
         self.terrain_mesh.setSz(20)
         self.terrain_mesh.reparentTo(base.render)
+        self.terrain_mesh.setCollideMask(ground_mask)
 
         self.num_aliens = None
 
@@ -471,7 +473,7 @@ class LevelBase:
     def player_movement_task(self, _task):
         velocity = Vec3(0, 0, 0)
         dt = globalClock.getDt()
-        speed = Vec3(40, 30, 20)  # front, back, sideways
+        speed = Vec3(100, 40, 30)  # front, back, sideways
         x, y, _z = self.player.node.get_pos()
         self.player.node.setX(min(max(1, x), 255))
         self.player.node.setY(min(max(1, y), 255))
@@ -542,6 +544,7 @@ class LevelBase:
     def destroy(self):
         self.player.camera.node().getDisplayRegion(0).setCamera(self.base.cam)
         self.base.render.node().removeAllChildren()
+        self.base.render.clearLight()
         self.player.hp_bar.remove_node()
         self.aliens_killed_bar.remove_node()
         self.base.task_mgr.remove("mouse_look_task")
@@ -604,7 +607,7 @@ class Level1(LevelBase):
             alien.node.setCollideMask(enemy_mask)
             alien.node.setPythonTag("alien", alien)
             base.task_mgr.doMethodLater(
-                2, alien.update_task, f"alien{id(alien)}_update"
+                0.5, alien.update_task, f"alien{id(alien)}_update"
             )
             base.task_mgr.add(self.draw_aliens_mipmap_task, "draw_aliens_mipmap_task")
         self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
@@ -723,10 +726,11 @@ def make_button(text, callback, pos):
         pos=pos,
         scale=(0.12, 1, 0.12),
         text_scale=(0.9, 0.9),
-        text_bg=(0, 0.085, 0.125, 1),
-        text_fg=(0, 0.7, 1, 1),
+
+        text_bg=(249/255, 161/255, 72/255, 1),
+        text_fg=(0, 0, 0, 1),
         relief=DirectGuiGlobals.GROOVE,
-        frameColor=(0, 0.35, 0.5, 1),
+        frameColor=(184/255, 64/255, 22/255, 1),
         text_shadow=(0, 0.0425, 0.0625, 1),
     )
 
