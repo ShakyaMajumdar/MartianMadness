@@ -167,7 +167,7 @@ class Alien:
         m = self.loader.load_model("assets/models/ball.bam")
         m.setScale(0.05)
         m.reparent_to(bullet)
-        bullet.set_pos(self.node.get_pos())
+        bullet.set_pos(self.node, 0, 0, 0.5)
         bullet.lookAt(self.player.node.get_pos() + Vec3(0, 0, 0.1))
 
         bullet_col_node = CollisionNode("bullet_col_node")
@@ -353,7 +353,7 @@ class LevelBase:
 
         expfog = Fog("scene-wide-fog")
         expfog.setColor(*atmosphere_col)
-        expfog.setExpDensity(0.004)
+        expfog.setExpDensity(0.002)
         base.render.setFog(expfog)
 
         ambientLight = AmbientLight("ambientLight")
@@ -391,6 +391,7 @@ class LevelBase:
         self.terrain_mesh = self.terrain.get_root()
         self.terrain_mesh.setSz(20)
         self.terrain_mesh.reparentTo(base.render)
+        self.terrain_mesh.setCollideMask(ground_mask)
 
         self.num_aliens = None
 
@@ -525,6 +526,7 @@ class LevelBase:
     def destroy(self):
         self.player.camera.node().getDisplayRegion(0).setCamera(self.base.cam)
         self.base.render.node().removeAllChildren()
+        self.base.render.clearLight()
         self.player.hp_bar.remove_node()
         self.aliens_killed_bar.remove_node()
         self.base.task_mgr.remove("mouse_look_task")
@@ -572,7 +574,7 @@ class Level1(LevelBase):
             alien.node.setCollideMask(enemy_mask)
             alien.node.setPythonTag("alien", alien)
             base.task_mgr.doMethodLater(
-                2, alien.update_task, f"alien{id(alien)}_update"
+                0.5, alien.update_task, f"alien{id(alien)}_update"
             )
         self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
         base.accept("vehicle_enter", self.rover_enter)
