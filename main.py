@@ -155,7 +155,7 @@ class Alien:
         bullet_col_node_path.setPythonTag("bullet", bullet)
 
         bullet_col_node.addSolid(bullet_cs)
-        bullet_col_node.setFromCollideMask(ground_mask | player_mask)
+        bullet_col_node.setFromCollideMask(ground_mask | player_mask | wall_mask)
         bullet_col_node.setIntoCollideMask(0)
         self.cTrav.addCollider(bullet_col_node_path, self.enemy_bullet_hit_queue)
 
@@ -189,11 +189,17 @@ class AppStateFSM(FSM):
     def exitHowToPlay(self):
         self.how_to_play.destroy()
 
-    def enterGame(self):
-        self.game = Game(self, self.base)
+    def enterLevel1(self):
+        self.level1 = Level1(self, self.base)
 
-    def exitGame(self):
-        self.game.destroy()
+    def exitLevel1(self):
+        self.level1.destroy()
+
+    def enterLevel2(self):
+        self.level2 = Level2(self, self.base)
+
+    def exitLevel2(self):
+        self.level2.destroy()
 
     def enterCredits(self):
         self.credits = Credits(self)
@@ -214,7 +220,7 @@ class MainMenu:
         self.title = OnscreenImage("assets/title.png", pos=(0, 0, 0.1), scale=(0.8, 1, 0.12))
         self.title.setTransparency(TransparencyAttrib.MAlpha)
         self.buttons = [
-            make_button("NEW GAME", lambda: fsm.request("Game"), (0, 0, -0.2)),
+            make_button("NEW GAME", lambda: fsm.request("Level1"), (0, 0, -0.2)),
             make_button("HOW TO PLAY", lambda: fsm.request("HowToPlay"), (0, 0, -0.39)),
             make_button("CREDITS", lambda: fsm.request("Credits"), (0, 0, -0.57)),
             make_button("QUIT", sys.exit, (0, 0, -0.75)),
@@ -254,7 +260,7 @@ class DeadScreen:
     def __init__(self, fsm):
         self.text = OnscreenText("YOU DIED!", fg=(1, 1, 1, 1), pos=(0, 0.4))
         self.menu_button = make_button("BACK TO MENU", lambda: fsm.request("MainMenu"), (0, 0, -0.6))
-        self.again_button = make_button("PLAY AGAIN", lambda: fsm.request("Game"), (0, 0, -0.8))
+        self.again_button = make_button("PLAY AGAIN", lambda: fsm.request("Level1"), (0, 0, -0.8))
 
     def destroy(self):
         self.text.destroy()
@@ -262,7 +268,7 @@ class DeadScreen:
         self.again_button.destroy()
 
 
-class Game:
+class LevelBase:
     def __init__(self, fsm, base):
         self.base = base
         self.fsm = fsm
@@ -298,12 +304,6 @@ class Game:
         base.cTrav = CollisionTraverser()
         base.cTrav.setRespectPrevTransform(True)
 
-        self.rover = base.loader.load_model("assets/models/rover.bam")
-        self.rover.reparent_to(base.render)
-        self.rover.set_pos(2, 3, 0.5)
-        self.rover.set_scale(0.3)
-        self.rover.setCollideMask(wall_mask | rover_mask)
-
         player_node = NodePath("player_node")
         player_node.reparent_to(base.render)
         self.player = Player(player_node, base.cTrav, base, self.fsm)
@@ -314,24 +314,8 @@ class Game:
         self.gun.node.set_pos(Vec3(0.3, 2, -0.4))
         self.gun.node.reparent_to(self.player.camera)
         self.enemy_bullet_hit_queue = CollisionHandlerQueue()
-        alien_centre = Vec3(2, 3, 1)
-        alien_radius = 4
-        self.num_aliens = 5
-        for i in range(self.num_aliens):
-            alien = Alien(
-                NodePath(f"alien{i}_node"),
-                alien_centre + Vec3(alien_radius * math.cos(2 * math.pi / self.num_aliens * i), alien_radius * math.sin(2 * math.pi / self.num_aliens * i), 0),
-                self.player,
-                base.loader,
-                base.render,
-                base.task_mgr,
-                base.cTrav,
-                self.enemy_bullet_hit_queue
-            )
-            alien.node.reparent_to(base.render)
-            alien.node.setCollideMask(enemy_mask)
-            alien.node.setPythonTag("alien", alien)
-            base.task_mgr.doMethodLater(5, alien.update_task, f"alien{id(alien)}_update")
+
+        self.num_aliens = None
 
         self.aliens_killed = 0
         self.aliens_killed_bar = HealthBar()
@@ -340,7 +324,6 @@ class Game:
         self.aliens_killed_bar.setPos(1.1, 0, 0.9)
         self.aliens_killed_bar.setScale(1, 0, 0.5)
         self.ak_text_n = TextNode("aliens_killed_text_node")
-        self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
         self.ak_text_np = self.aliens_killed_bar.attachNewNode(self.ak_text_n)
         self.ak_text_np.set_scale(0.1, 1, 0.2)
         self.ak_text_np.set_pos((-0.1, 0, -0.05))
@@ -364,26 +347,9 @@ class Game:
 
         base.accept("aspectRatioChanged", self.set_center)
         base.accept("escape", lambda: self.fsm.request("MainMenu"))
-        base.accept("rover_enter", self.rover_enter)
-        base.accept("rover_exit", self.rover_exit)
 
         dr = base.camNode.getDisplayRegion(0)
         dr.setCamera(self.player.camera)
-
-    def rover_enter(self, _):
-        self.rover_message = None
-        if (self.player.node.get_pos() - self.rover.get_pos()).length() > 5:
-            return
-        if self.aliens_killed < self.num_aliens:
-            self.rover_message = OnscreenText("Kill all aliens to use rover.")
-        else:
-            self.rover_message = OnscreenText("Press E to use rover.")
-            self.base.acceptOnce("e", lambda: self.fsm.request("MainMenu"))
-        self.rover_message.set_pos(0, 0, -0.3)
-
-    def rover_exit(self, _):
-        if self.rover_message:
-            self.rover_message.destroy()
 
     def set_center(self):
         self.center = (self.base.win.getXSize() // 2, self.base.win.getYSize() // 2)
@@ -463,6 +429,65 @@ class Game:
         self.crosshair.destroy()
         self.props.setCursorHidden(False)
         self.base.win.requestProperties(self.props)
+
+
+class Level1(LevelBase):
+    def __init__(self, fsm, base):
+        super().__init__(fsm, base)
+        self.rover = base.loader.load_model("assets/models/rover.bam")
+        self.rover.reparent_to(base.render)
+        self.rover.set_pos(2, 3, 0.5)
+        self.rover.set_scale(0.3)
+        self.rover.setCollideMask(wall_mask | rover_mask)
+
+        self.rover_message = None
+
+        alien_centre = Vec3(2, 3, 1)
+        alien_radius = 4
+        self.num_aliens = 5
+        for i in range(self.num_aliens):
+            alien = Alien(
+                NodePath(f"alien{i}_node"),
+                alien_centre + Vec3(alien_radius * math.cos(2 * math.pi / self.num_aliens * i),
+                                    alien_radius * math.sin(2 * math.pi / self.num_aliens * i), 0),
+                self.player,
+                base.loader,
+                base.render,
+                base.task_mgr,
+                base.cTrav,
+                self.enemy_bullet_hit_queue
+            )
+            alien.node.reparent_to(base.render)
+            alien.node.setCollideMask(enemy_mask)
+            alien.node.setPythonTag("alien", alien)
+            base.task_mgr.doMethodLater(2, alien.update_task, f"alien{id(alien)}_update")
+        self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
+        base.accept("rover_enter", self.rover_enter)
+        base.accept("rover_exit", self.rover_exit)
+
+    def rover_enter(self, _):
+        if (self.player.node.get_pos() - self.rover.get_pos()).length() > 5:
+            return
+        if self.aliens_killed < self.num_aliens:
+            self.rover_message = OnscreenText("Kill all aliens to use rover.")
+        else:
+            self.rover_message = OnscreenText("Press E to use rover.")
+            self.base.acceptOnce("e", lambda: self.fsm.request("Level2"))
+        self.rover_message.set_pos(0, 0, -0.3)
+
+    def rover_exit(self, _):
+        self.base.ignore("e")
+        if self.rover_message:
+            self.rover_message.destroy()
+
+    def destroy(self):
+        super().destroy()
+        if self.rover_message:
+            self.rover_message.destroy()
+
+
+class Level2(LevelBase):
+    ...
 
 
 def make_button(text, callback, pos):
