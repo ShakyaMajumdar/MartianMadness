@@ -149,11 +149,11 @@ class Alien:
         def cb(task, bullet=bullet):
             bullet.set_fluid_pos(bullet, 0, 0.5, 0)
 
-            d = float(bullet.getTag("dist") or 0)
+            d = bullet.getPythonTag("dist") or 0
             if d > 50:
                 bullet.remove_node()
                 return task.done
-            bullet.setTag("dist", str(d + 0.5))
+            bullet.setPythonTag("dist", d + 0.5)
             return task.cont
         self.task_mgr.add(cb, f"bullet{id(bullet)}_update")
         return task.again
@@ -303,10 +303,11 @@ class Game:
         self.enemy_bullet_hit_queue = CollisionHandlerQueue()
         alien_centre = Vec3(2, 3, 1)
         alien_radius = 4
-        for i in range(5):
+        self.num_aliens = 5
+        for i in range(self.num_aliens):
             alien = Alien(
                 NodePath(f"alien{i}_node"),
-                alien_centre + Vec3(alien_radius * math.cos(2 * math.pi / 5 * i), alien_radius * math.sin(2 * math.pi / 5 * i), 0),
+                alien_centre + Vec3(alien_radius * math.cos(2 * math.pi / self.num_aliens * i), alien_radius * math.sin(2 * math.pi / self.num_aliens * i), 0),
                 self.player,
                 base.loader,
                 base.render,
@@ -318,6 +319,22 @@ class Game:
             alien.node.setCollideMask(enemy_mask)
             alien.node.setPythonTag("alien", alien)
             base.task_mgr.doMethodLater(5, alien.update_task, f"alien{id(alien)}_update")
+
+        self.aliens_killed = 0
+        self.aliens_killed_bar = HealthBar()
+        self.aliens_killed_bar.setHealth(0)
+        self.aliens_killed_bar.reparent_to(base.aspect2d)
+        self.aliens_killed_bar.setPos(1.1, 0, 0.9)
+        self.aliens_killed_bar.setScale(1, 0, 0.5)
+        self.ak_text_n = TextNode("aliens_killed_text_node")
+        self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
+        self.ak_text_np = self.aliens_killed_bar.attachNewNode(self.ak_text_n)
+        self.ak_text_np.set_scale(0.1, 1, 0.2)
+        self.ak_text_np.set_pos((-0.1, 0, -0.05))
+        self.alien_im = OnscreenImage("assets/alien.png", pos=(-0.4, 0, 0))
+        self.alien_im.setScale(0.1)
+        self.alien_im.setTransparency(TransparencyAttrib.MAlpha)
+        self.alien_im.reparent_to(self.aliens_killed_bar)
 
         self.crosshair = OnscreenImage(image="assets/textures/cross.png", pos=(0, 0, 0))
         self.crosshair.setTransparency(TransparencyAttrib.MAlpha)
@@ -385,6 +402,9 @@ class Game:
                 self.base.task_mgr.remove(f"alien{id(alien)}_update")
 
             if alien.take_damage(5):
+                self.aliens_killed += 1
+                self.aliens_killed_bar.setHealth(self.aliens_killed/self.num_aliens)
+                self.ak_text_n.set_text(f"{self.aliens_killed}/{self.num_aliens}")
                 alien.actor.play("CharacterArmature|Death")
                 self.base.task_mgr.doMethodLater(2, cb, "dead_alien_remove", extraArgs=[])
         return task.again
@@ -402,6 +422,7 @@ class Game:
         self.player.camera.node().getDisplayRegion(0).setCamera(self.base.cam)
         self.base.render.node().removeAllChildren()
         self.player.hp_bar.remove_node()
+        self.aliens_killed_bar.remove_node()
         self.base.task_mgr.remove("mouse_look_task")
         self.base.task_mgr.remove("player_movement_task")
         self.base.task_mgr.remove("check_enemy_bullets_task")
