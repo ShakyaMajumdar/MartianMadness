@@ -31,6 +31,10 @@ atmosphere_col = 0.7529, 0.6196, 0.3921
 class App(ShowBase):
     def __init__(self):
         super().__init__()
+        props = WindowProperties()
+        props.set_title("Martian Madness")
+        props.icon_filename = "assets/logo.ico"
+        self.win.requestProperties(props)
         self.music = self.loader.loadSfx("assets/sfx/music.wav")
         self.music.setVolume(0.5)
         self.music.setLoop(True)
